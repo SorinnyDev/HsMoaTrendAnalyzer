@@ -147,7 +147,8 @@ class TrendAnalysisService:
                 }).sort_values(by="power_score", ascending=False).head(30).to_string()
 
                 # 4. Load Previous Analysis Context (for continuity)
-                last_report_path = "./outputs/last_ai_report.txt"
+                output_dir = os.getenv("OUTPUT_DIR", "./outputs")
+                last_report_path = os.path.join(output_dir, "last_ai_report.txt")
                 prev_report = ""
                 if (os.path.exists(last_report_path)):
                     try:
@@ -168,7 +169,7 @@ class TrendAnalysisService:
                         f.write(report)
                     
                     # Archive dated version
-                    archive_dir = "./outputs/ai_reports"
+                    archive_dir = os.path.join(output_dir, "ai_reports")
                     os.makedirs(archive_dir, exist_ok=True)
                     archive_path = os.path.join(archive_dir, f"report_{datetime.now().strftime('%Y%m%d')}.txt")
                     with open(archive_path, "w", encoding="utf-8") as f:
@@ -198,7 +199,8 @@ class TrendAnalysisService:
         import pandas as pd
         from Application.Service.NotificationService import NotificationService
         
-        stats_file = "./outputs/건기식 - statistics.xlsx"
+        output_dir = os.getenv("OUTPUT_DIR", "./outputs")
+        stats_file = os.path.join(output_dir, "건기식 - statistics.xlsx")
         
         if (not os.path.exists(stats_file)):
             logger.error("Cannot find statistics file for reporting.")

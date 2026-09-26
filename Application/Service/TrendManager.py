@@ -16,10 +16,10 @@ class TrendManager:
     def __init__(self) -> None:
         self.gemini_client = GeminiClient()
         self.weight_calculator = WeightCalculator()
-        self.stats_file_path = "./outputs/건기식 - statistics.xlsx"
+        self.stats_file_path = os.path.join(os.getenv("OUTPUT_DIR", "./outputs"), "건기식 - statistics.xlsx")
         
         # Explicit directory creation
-        os.makedirs("./outputs", exist_ok=True)
+        os.makedirs(os.getenv("OUTPUT_DIR", "./outputs"), exist_ok=True)
         
     async def process_daily_trends(self, items: List[ScheduleItem], target_date: str) -> None:
         """

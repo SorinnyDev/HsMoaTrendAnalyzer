@@ -9,8 +9,8 @@ class SqliteRepository:
     Tracks which dates have been successfully scraped.
     """
 
-    def __init__(self, db_path: str = "./outputs/crawling_history.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        self.db_path = db_path or os.path.join(os.getenv("OUTPUT_DIR", "./outputs"), "crawling_history.db")
         # Ensure directory exists
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._initialize_db()

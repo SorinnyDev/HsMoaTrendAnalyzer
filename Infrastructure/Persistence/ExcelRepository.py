@@ -9,8 +9,8 @@ class ExcelRepository:
     Handles monthly files and daily sheets.
     """
 
-    def __init__(self, base_path: str = "./outputs") -> None:
-        self.base_path = base_path
+    def __init__(self, base_path: str = None) -> None:
+        self.base_path = base_path or os.getenv("OUTPUT_DIR", "./outputs")
         if (not os.path.exists(self.base_path)):
             os.makedirs(self.base_path)
 
