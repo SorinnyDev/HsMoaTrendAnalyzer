@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  analyzer:
+    build: .
+    container_name: hsmoa-trend-analyzer
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+      - ./outputs:/app/outputs
+    env_file:
+      - .env

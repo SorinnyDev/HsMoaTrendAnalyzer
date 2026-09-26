@@ -1,0 +1,6 @@
+playwright
+pandas
+openpyxl
+python-dotenv
+requests
+google-genai

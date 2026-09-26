@@ -1,0 +1,3161 @@
+
+
+
+
+
+
+
+
+
+
+<!DOCTYPE html>
+<!--[if IE 7 ]> <html lang="ko" class="ie7"> <![endif]-->
+<!--[if IE 8 ]> <html lang="ko" class="ie8"> <![endif]-->
+<!--[if IE 9 ]> <html lang="ko" class="ie9"> <![endif]-->
+<!--[if (gt IE 9)|!(IE)]><!--> <html lang="ko"> <!--<![endif]-->
+<head>
+
+
+
+
+
+
+<script type="module">
+    require ([
+        'common/cjos/util/configUtil',
+        'common/cjos/util/loginInfo'
+    ], function (configUtil, loginInfo) {
+        function targetValid (target) {
+            return [
+                "AUazJnBVfN0cb8zq+ebtcQ==",
+                "aQ5umfhi5LT3fc9zsVbZbg==",
+                "6zRaE+hWdMpklo4LPRUkiQ==",
+                "KlXN16Rxja+QLkB3J/kOJg==",
+                "PXS5z4Lm6m2VYl5uQZ10CA==",
+                "IdNfTVYn2a025JZAID/m+g==",
+                "xI9yQPF8F5cyNMMkeyYmIA==",
+                "zIneoJSz8FHejIhHEgxv8A==",
+                "9kQLiMWzoZu9Ea4s7wH9EQ==",
+                "kihic/43MzLWnMT1x78gkQ==",
+                "eJcbrAqmW4plvEtg3JZSgw==",
+                "P3PXIc+5mZD8UV1fBGHrQg==",
+                "UDawRxaXZA0d6wDmoWM3fw==",
+                "9DPWuNzDF3MFI2e6WlMaNA=="
+            ].includes(target);
+        }
+        function dd_init(isTarget, target) {
+            var phase = configUtil.get('phase');
+            if(phase === 'qa' || phase === 'stg' || phase === 'prd') {
+                var args = {
+                    clientToken: 'pub2667e726df9f386297f0cfa3d0d72042',
+                    applicationId: 'fd8c2e55-5878-4f01-a3fd-019a97fc457e',
+                    site: 'datadoghq.com',
+                    service: 'Front-Mobile',
+                    env: phase,
+                    sessionSampleRate: isTarget ? 100 : 3,
+                    sessionReplaySampleRate: isTarget ? 100 : 0,
+                    trackUserInteractions: true,
+                    trackResources: true,
+                    trackLongTasks: true,
+                    defaultPrivacyLevel: 'mask-user-input',
+                    allowedTracingUrls: [/https:\/\/.+.cjonstyle.com\/.*/],
+                    traceSampleRate: 100,
+                    beforeSend: function (event) {
+                        if (event.error) {
+                            var error = event.error;
+                            var errorPatterns = [
+                                /Object Not Found Matching Id:\d+, MethodName:\w+, ParamCount:\d+/,
+                                /Script error\./,
+                                /Ignored attempt to cancel a touchmove event/,
+                                /The play\(\)/,
+                                /window\.webkit\.messageHandlers/,
+                                /Can't find variable: ga/,
+                                /ga is not defined/
+                            ];
+                            for (var i = 0; i < errorPatterns.length; i++) {
+                                if (errorPatterns[i].test(error.message)) return false;
+                            }
+                        }
+                        return true;
+                    }
+                };
+
+                (function(h,o,u,n,d) {
+                    h=h[d]=h[d]||{q:[],onReady:function(c){h.q.push(c);}};
+                    d=o.createElement(u);d.async=1;d.src=n;
+                    n=o.getElementsByTagName(u)[0];n.parentNode.insertBefore(d,n);
+                })(window,document,'script','https://www.datadoghq-browser-agent.com/us1/v5/datadog-rum.js','DD_RUM');
+                window.DD_RUM.onReady(function() {
+                    window.DD_RUM.init(args);
+                    if (isTarget) {
+                        // 페이지 이탈 시 세션끊기
+                        window.onbeforeunload = function() {
+                            window.DD_RUM.stopSession();
+                        };
+                        window.DD_RUM.setGlobalContextProperty('targetCustomer', target);
+                    }
+                });
+            }
+        }
+
+        // 로그인상태면서, 임직원일 경우
+        if (loginInfo.getIsEmployee()) {
+            loginInfo.get(function (info) {
+                if(info && info.isLoggedIn) {
+                    // 추후 어드민 생기면 이관
+                    var aes256SecretKey = '3EIpd91Xljz3bSsDg7Fatj78HIY5S1RM' // key 값 32 바이트 (app key sync)
+                    var aes256Iv = '3EIpd91Xljz3bSsD' //iv 16 바이트 (app iv sync)
+                    var aes256EncodeData = info['custNo']
+
+                    // aes256Encode
+                    function aes256Encode(secretKey, Iv, data) {
+                        var cipher = CryptoJS.AES.encrypt(
+                            data,
+                            CryptoJS.enc.Utf8.parse(secretKey),
+                            {
+                                iv: CryptoJS.enc.Utf8.parse(Iv),
+                                padding: CryptoJS.pad.Pkcs7,
+                                mode: CryptoJS.mode.CBC
+                            }
+                        )
+                        return cipher.toString();
+                    }
+
+                    var target = aes256Encode(aes256SecretKey, aes256Iv, aes256EncodeData);
+                    dd_init(targetValid(target), target);
+                } else {
+                    dd_init(false);
+                }
+            });
+        } else {
+            dd_init(false);
+        }
+    });
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- 변경 가능성이 낮은 메타 태그 정보 하드코딩 -->
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta http-equiv="Content-Script-Type" content="text/javascript" />
+<meta http-equiv="Content-Style-Type" content="text/css" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<link rel="shortcut icon" href="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-markup-common/dist/common-cjmall-pc/others/9a6accb135b2216f98a41544d53cb0df/img/common/cjmall/p/favicon2.png" sizes="32x32" />
+<!-- // 변경 가능성이 낮은 메타 태그 정보 하드코딩 -->
+
+<!-- 서버에서 셋팅한 공통 메타 태그 정보 -->
+
+	
+		
+			
+			
+				
+				
+					
+						
+						
+						
+							
+								<title>취향공감 라이브쇼핑 - CJ ONSTYLE</title>
+							
+							
+							
+						
+					
+				
+			
+		
+			
+			
+				
+				
+					
+						
+						
+						
+							
+							
+							
+								
+									
+										<meta name = "description"
+									
+									
+									
+								
+							
+						
+					
+						
+						
+						
+							
+							
+							
+								
+									
+									
+									 content = "CJ온스타일에서 NEW 프로 다이어트 유산균 9개월+슬림플러스30포를 만나보세요. 제품분류:식품&gt;건강기능식품" />
+									
+									
+								
+							
+						
+					
+				
+			
+		
+			
+			
+				
+				
+					
+						
+						
+						
+							
+							
+							
+								
+									
+										<meta name = "og:title"
+									
+									
+									
+								
+							
+						
+					
+						
+						
+						
+							
+							
+							
+								
+									
+									
+									 content = "NEW 프로 다이어트 유산균 9개월+슬림플러스30포 | CJ온스타일" />
+									
+									
+								
+							
+						
+					
+				
+			
+		
+			
+			
+				
+				
+					
+						
+						
+						
+							
+							
+							
+								
+									
+										<meta name = "og:description"
+									
+									
+									
+								
+							
+						
+					
+						
+						
+						
+							
+							
+							
+								
+									
+									
+									 content = "CJ온스타일에서 NEW 프로 다이어트 유산균 9개월+슬림플러스30포를 만나보세요. 제품분류:식품&gt;건강기능식품" />
+									
+									
+								
+							
+						
+					
+				
+			
+		
+			
+			
+				
+				
+					
+						
+						
+						
+							
+							
+							
+								
+									
+										<meta property = "og:type"
+									
+									
+									
+								
+							
+						
+					
+						
+						
+						
+							
+							
+							
+								
+									
+									
+									 content = "website" />
+									
+									
+								
+							
+						
+					
+				
+			
+		
+			
+			
+				
+				
+					
+						
+						
+						
+							
+							
+							
+								
+									
+										<meta property = "og:url"
+									
+									
+									
+								
+							
+						
+					
+						
+						
+						
+							
+							
+							
+								
+									
+									
+									 content = "https://display.cjonstyle.com/p/item/2076751939" />
+									
+									
+								
+							
+						
+					
+				
+			
+		
+			
+			
+				
+				
+				
+			
+		
+			
+			
+				
+				
+					
+						
+						
+						
+							
+							
+							
+								
+									
+										<meta name = "keywords"
+									
+									
+									
+								
+							
+						
+					
+						
+						
+						
+							
+							
+							
+								
+									
+									
+									 content = "온스타일,ONSTYLE,CJ온스타일,CJONSTYLE,CJ홈쇼핑,씨제이홈쇼핑,최화정쇼,힛더스타일,굿라이프,브티나는생활,엣지쇼,더엣지,셀렙샷 에디션,오덴세,테일러센츠,오하루" />
+									
+									
+								
+							
+						
+					
+				
+			
+		
+			
+			
+				
+				
+					
+						
+						
+						
+							
+							
+							
+								
+									
+										<meta property = "og:image"
+									
+									
+									
+								
+							
+						
+					
+						
+						
+						
+							
+							
+							
+								
+									
+									
+									 content = "http://itemimage.cjonstyle.net/goods_images/20/939/2076751939L.jpg?timestamp=202604171750" />
+									
+									
+								
+							
+						
+					
+				
+			
+		
+			
+			
+				
+				
+					
+						
+						
+						
+							
+							
+								
+									
+										<link
+									
+									
+									
+								
+							
+							
+						
+					
+						
+						
+						
+							
+							
+							
+								
+									
+									
+									
+									  rel = "canonical"
+									
+								
+							
+						
+					
+						
+						
+						
+							
+							
+							
+								
+									
+									
+									 href = "https://item.cjonstyle.com/item/2076751939" />
+									
+									
+								
+							
+						
+					
+				
+			
+		
+	
+	
+
+<!-- // 서버에서 셋팅한 공통 메타 태그 정보 -->
+
+
+
+
+
+
+
+
+<link rel="stylesheet" type="text/css" href="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-markup-common/dist/common-cjos-pc/others/67b1699cc3645beb2faf7cf378bd5a32/css/common.cjos.pc.min.css" data-config-version="innerJarVersion"  >
+<link rel="stylesheet" type="text/css" href="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-markup-common/dist/common-cjmall-pc/others/9a6accb135b2216f98a41544d53cb0df/css/common.cjmall.pc.min.css" data-config-version="innerJarVersion"  >
+<link rel="stylesheet" type="text/css" href="https://image.cjonstyle.net/public/confirm/contents/ec-static-contents/design/font/font.css" data-config-version="innerJarVersion"  >
+
+
+
+
+
+
+
+<link rel="stylesheet" type="text/css" href="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-static-component/dist/component-cjmall-pc/video/b734fa8c2c97f4e9e45c0000f42416b5/css/component.cjmall.pc.video.min.css" data-config-version="innerJarVersion"  >
+<link rel="stylesheet" type="text/css" href="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-markup-common/dist/page-cjmall-pc/others/b592a6294c4e9cff619e0ab7e7d39b41/css/page.cjmall.pc.item.min.css" data-config-version="innerJarVersion"  >
+
+
+
+
+
+
+
+<!-- Google Tag Manager -->
+
+
+<script>
+	window.dataLayer = window.dataLayer || [];
+	window.GTM_COMMON_REQUIRED_VALIABLE = ["dimension3", "dimension6", "dimension7", "dimension8", "dimension9", "dimension10", "dimension11", "dimension13", "dimension35", "google_conversion_value", "google_params"];
+</script>
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-MDBDKFF');</script>
+<!-- End Google Tag Manager -->
+<!--[if lt IE 9 ]>
+<script type="text/javascript" src="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-static-component/dist/component-cjmall-pc/video_ie8/cce29c12d04950d4bb509bc4b2217130/js/component.cjmall.pc.video_ie8.min.js" data-config-env="prd" data-config-version="innerJarVersion" ></script>
+<![endif]-->
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+<body>
+	
+
+
+
+
+
+	
+
+
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MDBDKFF"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+	
+
+
+
+
+
+
+
+
+
+
+
+	
+
+
+
+
+
+
+
+
+	
+
+
+
+
+
+
+
+
+
+
+	
+
+
+
+
+<!--  tag lib 안에서 debug 모드 분리 -->
+
+
+
+
+
+
+
+
+
+
+ 
+<script src="https://player.live-video.net/1.6.1/amazon-ivs-player.min.js"></script>
+	<div id="wrap">
+		
+
+
+
+
+
+
+<!-- skip navigation -->
+<div id="cj_index" class="cj_index">
+	<a id="contents_direct_link" rel="bookmark" href="#content" class="shortcut_g"><span class="txt">본문 바로가기</span></a>
+	<a id="main_nav_direct_link" rel="bookmark" href="#gnb" class="shortcut_g"><span class="txt">주메뉴 바로가기</span></a>
+	<a id="myzone_direct_link" rel="bookmark" href="#go_myzone" class="shortcut_g"><span class="txt">마이존 바로가기</span></a>
+</div>
+<!-- //skip navigation -->
+		
+
+
+
+
+
+
+
+<div id="affiliateHeader"></div>
+
+		
+
+
+
+
+
+<!-- header -->
+<div id="header">
+</div>
+<!-- //header -->
+	
+		
+
+
+
+
+
+
+<div id="container">
+  <!-- content -->
+  <div id="content" tabindex="-1">
+  	<div class="spinner with_header"><span><em class="blind">로딩중</em></span></div>
+	<div class="u_breadcrumbs_wrap">
+	    
+
+
+
+
+<script id="topItemCateTmpl" type="text/x-handlebars-template">
+<ul>
+	<li><a href="{{largeCategoryLink}}">{{largeCategoryName}}</a><span class="ico_arr"></span></li>
+	<li><a href="{{middleCategoryLink}}">{{middleCategoryName}}</a>{{#isNotEmpty smallCategoryName}}<span class="ico_arr"></span>{{/isNotEmpty}}</li>
+	{{#isNotEmpty smallCategoryName}}
+	<li><a href="{{smallCategoryLink}}">{{smallCategoryName}}</a></li>
+	{{/isNotEmpty}}
+</ul>
+</script>
+	</div>
+    <div class="prd_wrap">
+      <h2 class="blind">상품상세정보</h2>
+      <!-- 상단 -->
+      <div class="prd_detail_cont">
+		<div class="prd_img_wrap">
+		</div>
+		<div class="prd_info_wrap">
+			
+
+
+
+
+<script id="orderTmpl" type="text/x-handlebars-template">
+	<div class="cant_road" style="display: none;">
+		<span>상품정보를 불러오지 못했습니다.</span>
+		<button class="u_btn btn_ico btn_reload">다시시도</button>
+	</div>
+	<div class="select_wrap">
+	<!-- [D] 옵션 드롭다운 박스 기본 .option_select, 클릭시 open 클래스 추가, 옵션 선택 후 selected 클래스 추가 -->
+	</div>
+	<div class="selected_wrap" style="display: block">
+		<div class="gift_delivery_wrap">
+			  <p class="delivery_fees"></p>
+		</div>
+		<div class="scroll_wrap">
+			<ul class="selected_lst"></ul>
+		</div>
+		<div class="total_price_wrap" style="display: none;">
+			<span class="total_price">{{#compare isRentalItem '==' true}}월 렌탈료{{else}}총{{/compare}}<strong class="ff_price"></strong>원{{#compare isRentalItem '==' true}}~{{/compare}}
+			</span>
+		</div>
+	</div>
+	</script>
+	
+	<script id="orderTmpl-selectList" type="text/x-handlebars-template">
+	{{#isNotEmpty title}}<p class="package_tit txt_gray">{{title}}</p>{{/isNotEmpty}}
+	<div class="select_bx">
+		<a href="#" class="select_txt" data-item-type="{{itemType}}" data-index="{{index}}" role="button" aria-haspopup="listbox" aria-expanded="false">
+			<span id="_selectedText">{{#isNotEmpty selectedOption}}{{selectedOption.name}}{{else}}{{{label}}}{{/isNotEmpty}}</span><span class="ico_arr"></span></a>
+		<div class="option_list_wrap" style="display: none;">
+			<ul class="option_list" role="listbox" aria-label="{{label}}">
+				{{!-- #orderTmpl-selectList-item --}}
+			</ul>
+		</div>
+	</div>
+	</script>
+	
+	<script id="orderTmpl-selectList-item" type="text/x-handlebars-template">
+		{{#compare itemType '==' 'MOCODE'}}
+			{{#compare area '==' 'aside'}}
+				{{#each optionUnitItemCollection}}
+					{{#compare (is saleType '!=' 'A') '||' (is isSoldout '==' true) }}
+					<li class="{{#compare @index '==' ../selectedIndex}} on{{/compare}} soldout"  data-reinw="{{#compare (is saleType '!=' 'I') '&&' (is reInwNtcnYn '==' true)}}{{reInwNtcnYn}}{{/compare}}" role="none presentation">
+					{{else compare (is saleType '==' 'A') '&&' (is slRdyYn '==' 'Y') }}
+					<li class="{{#compare @index '==' ../selectedIndex}} on{{/compare}} soldout"  data-reinw="" role="none presentation">
+					{{else}}
+					<li class="{{#compare @index '==' ../selectedIndex}} on{{/compare}}"  data-reinw="{{#compare (is saleType '!=' 'I') '&&' (is reInwNtcnYn '==' true)}}{{reInwNtcnYn}}{{/compare}}" role="none presentation">
+					{{/compare}}		
+						<a href="#" role="option" {{#compare (is @index '==' ../selectedIndex) '||' (is isSelected '==' true)}}aria-selected="true" title="선택한 옵션"{{else}}aria-selected="false"{{/compare}}>
+							<p class="option_item">{{name}}</p>
+							<div class="price_bx">
+								{{#compare saleType '==' 'I'}}
+									<span>매진</span>
+								{{else compare (is saleType '!=' 'A') '||' (is isSoldout '==' true) }}
+									{{#compare customerPrice '!=' '0'}}
+										<span class="txt_price"><span class="ff_price">{{{formatNumber customerPrice}}}</span>원</span><span class="ico_bar"></span>
+									{{/compare}}
+									<span>매진</span>
+									{{#compare reInwNtcnYn '==' true}}
+										<span class="restock_available">재입고알림 신청가능</span>
+									{{/compare}}
+								{{else compare (is saleType '==' 'A') '&&' (is slRdyYn '==' 'Y') }}
+									{{#compare customerPrice '!=' '0'}}
+										<span class="txt_price"><span class="ff_price">{{{formatNumber customerPrice}}}</span>원</span><span class="ico_bar"></span>
+									{{/compare}}
+									<span>오픈예정</span>
+								{{else}}
+									<span class="txt_price"><span class="ff_price">{{{formatNumber customerPrice}}}</span>원</span>
+								{{/compare}}
+							</div>
+							<span class="ico_check"></span>
+						</a>
+					</li>
+				{{/each}}
+			{{else}}
+				{{#each optionUnitItemCollection}}
+					{{#compare (is saleType '!=' 'A') '||' (is isSoldout '==' true) }}
+					<li class="img_type {{#compare @index '==' ../selectedIndex}} on{{/compare}} soldout" data-reinw="{{#compare (is saleType '!=' 'I') '&&' (is reInwNtcnYn '==' true)}}{{reInwNtcnYn}}{{/compare}}" role="none presentation">
+					{{else compare (is saleType '==' 'A') '&&' (is slRdyYn '==' 'Y') }}
+					<li class="img_type {{#compare @index '==' ../selectedIndex}} on{{/compare}} soldout" data-reinw="" role="none presentation">
+					{{else}}
+					<li class="img_type {{#compare @index '==' ../selectedIndex}} on{{/compare}}" data-reinw="{{#compare (is saleType '!=' 'I') '&&' (is reInwNtcnYn '==' true)}}{{reInwNtcnYn}}{{/compare}}" role="none presentation">
+					{{/compare}}	
+						<a href="#" role="option" {{#compare (is @index '==' ../selectedIndex) '||' (is isSelected '==' true)}}aria-selected="true" title="선택한 옵션"{{else}}aria-selected="false"{{/compare}}>
+							<!--2017.09.21. thumbor pattern 변경-->
+							<span class="fn_valign">
+								{{#compare  (is saleType '!=' 'A') '||' (is isSoldout '==' true) }}
+									<span class="dim_soldout"><span class="txt_sold">매진</span><span class="bg_dimmed"></span></span>
+								{{/compare}}
+								{{#compare  (is saleType '==' 'A') '&&' (is slRdyYn '==' 'Y') }}
+									<span class="dim_soldout"><span class="txt_sold">오픈예정</span><span class="bg_dimmed"></span></span>
+								{{/compare}}
+								<img src="{{getThumbUrl defaultUrl 83 83 '' true}}" data-src="{{getThumbUrl productImgUrl 83 83 '' true}}" alt="" >
+							</span>
+							<!--//2017.09.21-->
+							<div class="img_type_inner">
+							<p class="option_item">{{name}}</p>
+							<div class="price_bx">
+								{{#compare saleType '==' 'I'}}
+									<span>매진</span>
+								{{else compare  (is saleType '!=' 'A') '||' (is isSoldout '==' true) }}
+									{{#compare customerPrice '!=' '0'}}
+										<span class="txt_price"><span class="ff_price">{{{formatNumber customerPrice}}}</span>원</span><span class="ico_bar"></span>
+									{{/compare}}
+									<span>매진</span>
+								{{#compare reInwNtcnYn '==' true}}
+									<span class="restock_available">재입고알림 신청가능</span>
+								{{/compare}}
+								{{else}}
+									<span class="txt_price"><span class="ff_price">{{{formatNumber customerPrice}}}</span>원</span>
+									{{#compare (is ../mocodeGiftDeliv '==' true) '&&' (is  giftDeliv '==' false )}}
+										<span class="ico_bar"></span><span class="txt_point2">선물하기 불가상품</span>
+									{{/compare}}
+									{{#compare (is onlyLiveOrd '==' true) '&&' (is isLive '==' false) }}
+										<span class="ico_bar"></span><span>생방송 중 주문 가능</span>
+									{{else}}
+										{{#isNotEmpty arsDiscountAmt}}
+										<span class="ico_bar"></span><span>TV쇼핑 동일 혜택<strong class="ff_price">{{{formatNumber arsDiscountAmt}}}</strong>원</span>
+										{{else}}
+											{{#isNotEmpty coupon}}<span class="ico_bar"></span><span class="txt_point">쿠폰<strong class="ff_price">{{formatNumber coupon.value}}</strong>{{coupon.unit}}</span>{{/isNotEmpty}}
+											{{#isNotEmpty spCoupon}}<span class="ico_bar"></span><span class="txt_point">쇼플<strong class="ff_price">{{formatNumber spCoupon.value}}</strong>{{spCoupon.unit}}</span>{{/isNotEmpty}}
+											{{#compare (is coupon '==' null) '||' (is spCoupon '==' null)}}
+												{{#compare mileagePrice '>' 0}}<span class="ico_bar"></span><span class="txt_point">적립금{{/compare}}
+											{{/compare}}
+											{{#compare moCodeGift '===' true}}<span class="ico_bar"></span><span>사은품</span>{{/compare}}
+										{{/isNotEmpty}}
+									{{/compare}}
+								{{/compare}}
+							</div>
+							</div>
+							<span class="center_bx">&nbsp;</span>
+							<span class="ico_check"></span>
+						</a>
+					</li>
+				{{/each}}
+			{{/compare}}
+		{{else compare itemType '==' 'PACK'}}
+			{{#each optionUnitItemCollection}}
+				<li class="{{#compare (is @index '==' ../selectedIndex) '||' (is isSelected '==' true)}}on{{/compare}} {{#compare isSoldout '==' true }} soldout{{/compare}}" role="none presentation">
+					<a href="#" role="option" {{#compare (is @index '==' ../selectedIndex) '||' (is isSelected '==' true)}}aria-selected="true" title="선택한 옵션"{{else}}aria-selected="false"{{/compare}}>
+						<p class="option_item">{{name}}
+							{{#compare isSoldout '==' true }}
+							<span class="ico_bar"></span><span class="soldout">매진</span>
+							{{/compare}}
+							{{#compare  (is ../etvItemStatus '==' 'M') '&&' (is stock '!=' 0)}}
+							<span class="ico_bar"></span><span>{{#compare ../stockDispLevel '==' '1'}}재고있음{{else}}남은 수량 {{{formatNumber stock}}}개{{/compare}}</span>
+							{{/compare}}
+						</p>
+						<span class="ico_check"></span>
+					</a>
+				</li>
+			{{/each}}
+		{{else compare (is itemType '==' 'ONE_GIFT') '||' (is itemType '==' 'ADD_GIFT')}}
+			{{#each optionUnitItemCollection}}
+				<li class="{{#compare (is @index '==' ../selectedIndex) '||' (is isSelected '==' true)}}on{{/compare}} {{#compare (is slCls '!=' 'A') '||' (is stock '==' 0) }} soldout{{/compare}}" role="none presentation">
+				  <a href="#" role="option" {{#compare (is @index '==' ../selectedIndex) '||' (is isSelected '==' true)}}aria-selected="true" title="선택한 옵션"{{else}}aria-selected="false"{{/compare}}>
+					<p class="option_item">{{../name}} / {{name}} {{#compare (is slCls '!=' 'A') '||' (is stock '==' 0) }} <span class="ico_bar"></span><span>매진</span> {{/compare}}</p>
+					<span class="ico_check"></span>
+				  </a>
+				</li>
+			{{/each}}
+		{{else}}
+			{{#each optionUnitItemCollection}}
+				{{#compare isSoldout '==' true }}
+					<li class="{{#compare (is @index '==' ../selectedIndex) '||' (is isSelected '==' true)}}on{{/compare}} soldout" data-reinw="{{reInwNtcnYn}}" role="none presentation">
+				{{else compare ../finalFlag '==' true }}
+					{{#compare (is saleType '!=' 'A') '||' (is isSoldout '==' true) }}
+					<li class="{{#compare (is @index '==' ../selectedIndex) '||' (is isSelected '==' true)}}on{{/compare}} soldout" data-reinw="{{reInwNtcnYn}}" role="none presentation">
+					{{else compare (is saleType '==' 'A') '&&' (is ../slRdyYn '==' 'Y') }}
+					<li class="{{#compare (is @index '==' ../selectedIndex) '||' (is isSelected '==' true)}}on{{/compare}} soldout" data-reinw="{{reInwNtcnYn}}" role="none presentation">
+					{{else}}
+					<li class="{{#compare (is @index '==' ../selectedIndex) '||' (is isSelected '==' true)}}on{{/compare}}" data-reinw="{{reInwNtcnYn}}" role="none presentation">
+					{{/compare}}
+				{{else}}
+					<li class="{{#compare (is @index '==' ../selectedIndex) '||' (is isSelected '==' true)}}on{{/compare}}" data-reinw="{{reInwNtcnYn}}" role="none presentation">
+				{{/compare}}	
+					<a href="#" role="option" {{#compare (is @index '==' ../selectedIndex) '||' (is isSelected '==' true)}}aria-selected="true" title="선택한 옵션"{{else}}aria-selected="false"{{/compare}}>
+						<p class="option_item">{{name}}{{#compare (is ../isRentalItem '==' true) '&&' (is diffRepsYn '==' true)}} <em>옵션 선택없이 상담가능</em>{{/compare}}</p>
+						<div class="price_bx">
+							{{#compare isGiftItem '==' true }}
+								<!-- 사은품 -->
+							{{else compare (is saleType '==' 'A') '&&' (is ../slRdyYn '==' 'Y') }}
+								{{#compare (is ../finalFlag '==' true) '&&' (is customerPrice '!=' '0') }}
+									{{#compare ../isRentalItem '==' true}}월 렌탈료 {{/compare}}<span class="txt_price"><span class="ff_price">{{{formatNumber customerPrice}}}</span>원</span><span class="ico_bar"></span>
+								{{/compare}}
+								<span>오픈예정</span>	
+							{{else compare isSoldout '==' true }}
+								{{#compare (is ../finalFlag '==' true) '&&' (is customerPrice '!=' '0') }}
+									{{#compare ../isRentalItem '==' true}}월 렌탈료 {{/compare}}<span class="txt_price"><span class="ff_price">{{{formatNumber customerPrice}}}</span>원</span><span class="ico_bar"></span>
+								{{/compare}}
+								<span>매진</span>
+							{{else compare (is ../finalFlag '==' true) '&&' (is saleType '==' 'I') }}
+								<span>매진</span>
+							{{else compare (is ../finalFlag '==' true) '&&' (is saleType '!=' 'A') }}
+								{{#compare customerPrice '!=' '0'}}
+									{{#compare ../isRentalItem '==' true}}월 렌탈료 {{/compare}}<span class="txt_price"><span class="ff_price">{{{formatNumber customerPrice}}}</span>원</span><span class="ico_bar"></span>
+								{{/compare}}
+								<span>매진</span>
+							{{else compare ../finalFlag '==' true}}
+								{{#compare (is ../isRentalItem '!==' true) '||' (is (is ../isRentalItem '==' true) '&&' (is customerPrice '>' 1) '==' true)}}
+									{{#compare ../isRentalItem '==' true}}월 렌탈료 {{/compare}}<span class="txt_price"><span class="ff_price">{{{formatNumber customerPrice}}}</span>원</span>
+								{{/compare}}
+								{{#compare ../isRentalItem '!==' true}}
+									{{#compare (is stock '>' 0) '&&' (is ../etvItemStatus '==' 'M') }}
+										{{#compare ../area '==' 'aside'}}
+											<span class="prd_left_num">
+										{{else}}
+											<span class="ico_bar"></span><span>
+										{{/compare}}
+											{{#compare ../stockDispLevel '==' '1'}}재고있음{{else}}남은 수량 {{{formatNumber stock}}}개{{/compare}}
+												</span>
+									{{/compare}}
+								{{/compare}}
+							{{/compare}}
+						</div>
+						<span class="ico_check"></span>
+					</a>
+					{{#compare (is saleType '==' 'S') '||' (is isSoldout '==' true) }}
+						{{#compare (is reInwNtcnYn '==' '1') '&&' (is ../finalFlag '==' true) }}
+						<button type="button" class="btn_alarm_restock{{#if isRestock}} on{{/if}}" data-itemcode="{{itemCode}}" id="restock{{#compare ../area '==' 'aside'}}A{{/compare}}_{{unitItemCode}}" data-index="{{@index}}" data-reinw="{{reInwNtcnYn}}">재입고알림</button>
+						{{/compare}}
+					{{/compare}}
+				</li>
+			{{/each}}
+		{{/compare}}
+	</script>
+		<script id="orderTmpl-selectedItem" type="text/x-handlebars-template">
+			{{#compare itemType '==' 'NORMAL'}}
+					{{#compare isRentalItem '!==' true}}
+						<div class="item_name">
+							<strong>{{displayName}}</strong> {{#if isSingle}}{{else}}<a href="#" class="btn_delete"><span class="ico_x">삭제</span></a>{{/if}}
+						</div>
+						<div class="opt_area _{{{customerPrice}}}">
+							<div class="item_number">
+								<a href="#" class="minus"><span class="sp_ico">수량감소</span></a> <input type="tel" class="order_num" title="상품수량" value="{{orderQty}}"> <a href="#" class="plus"><span class="sp_ico">수량증가</span></a>
+							</div>
+							<div class="item_price">
+							{{#compare customerPrice '!=' '0'}}
+								<strong class="ff_price">{{{formatNumber customerPrice}}}</strong>원
+							{{/compare}}
+							</div>
+						</div>
+						{{#if tmarvlYn}}
+							{{#compare isTmrlDeliv '==' false}}
+								<p class="txt_delivery">* 내일도착 불가, {{availableDelivDate}} 이내 도착예정</p>
+							{{/compare}}
+						{{/if}}
+					{{else compare isRentalItem '==' true}}
+						<div class="item_name {{#compare customerPrice '<' '2'}}no_price{{/compare}}">
+							<strong>{{displayName}}{{#if diffRepsYn}} <em>옵션 선택없이 상담가능</em>{{/if}}</strong>
+							{{#compare deletableYn '==' true}}
+							<a href="#" class="btn_delete">
+								<span class="ico_x">삭제</span>
+							</a>
+							{{/compare}}
+						</div>
+						{{#compare customerPrice '>' '1'}}
+						<div class="opt_area">
+							<div class="item_price">
+								월 렌탈료 <strong class="ff_price">{{{formatNumber customerPrice}}}</strong>원~
+							</div>
+						</div>
+						{{/compare}}
+					{{/compare}}
+			{{else compare itemType '==' 'PACK'}}
+					<div class="opt_area">
+						<div class="item_number">
+							<a href="#" class="minus"><span class="sp_ico">수량감소</span></a> <input type="tel" class="order_num" title="상품수량" value="1"> <a href="#" class="plus"><span class="sp_ico">수량증가</span></a>
+						</div>
+						<div class="item_price">
+						{{#compare customerPrice '!=' '0'}}
+							<strong class="ff_price">{{{formatNumber customerPrice}}}</strong>원
+						{{/compare}}
+						</div>
+					</div>
+			{{else compare (is itemType '==' 'ONE_GIFT') '||' (is itemType '==' 'ADD_GIFT')}}
+					{{#compare itemType '==' 'ONE_GIFT'}}
+						<span class="gift">(사은품) {{displayName}}</span>
+					{{else compare itemType '==' 'ADD_GIFT'}}
+						<span class="gift">(추가구성품) {{displayName}}</span>
+					{{/compare}}
+					<p class="gift_date">{{giftTermText}}</p>
+					{{#if isSingle}}{{else}}<a href="#" class="btn_delete"><span class="ico_x">삭제</span></a>{{/if}}
+			{{else compare itemType '==' 'MOCODE'}}
+					<div class="item_name">
+						{{#hasLinkGift}}<p class="event_tit">{{linkGiftText}}</p>{{/hasLinkGift}}
+						{{#compare unitMappYn '==' '1'}}<p class="event_tit">사은품 증정 행사 진행중</p>{{/compare}}
+						<strong>{{displayName}}</strong> <a href="#" class="btn_delete"><span class="ico_x">삭제</span></a>
+					</div>
+					<div class="opt_area">
+						<div class="item_number">
+							<a href="#" class="minus"><span class="sp_ico">수량감소</span></a> <input type="tel" class="order_num" title="상품수량" value="{{orderQty}}"> <a href="#" class="plus"><span class="sp_ico">수량증가</span></a>
+						</div>
+						<div class="item_price">
+						{{#compare customerPrice '!=' '0'}}
+							<strong class="ff_price">{{{formatNumber customerPrice}}}</strong>원
+						{{/compare}}
+						</div>
+					</div>
+				{{#each giftItems}}
+					{{#compare (is itemType '==' 'ONE_GIFT') '||' (is itemType '==' 'ADD_GIFT')}}
+						<div class="gift_bx">
+							<span class="gift">(사은품) {{displayName}}</span>
+							<p class="gift_date">{{giftTermText}}</p>
+						</div>
+					{{/compare}}
+				{{/each}}
+			{{/compare}}
+			{{#each unitGiftItems}}
+				{{#compare qtyLimitCd '==' '1'}}
+					{{#each giftUnitItems}}
+						<span class="gift">(사은품) {{../name}} : {{name}}</span>
+						<p class="gift_date">{{../giftTermText}}</p>
+					{{/each}}
+				{{/compare}}
+			{{/each}}
+		</script>
+	<script id="orderTmpl-buttons" type="text/x-handlebars-template">
+		{{#isNotEmpty zzim}}
+			{{#zzim}}
+			<div class="btn_cover">
+				<a href="#" class="u_btn btn_dip" role="button" aria-pressed="false">
+					<span class="sp">찜</span>
+				</a>
+			</div>
+			{{/zzim}}
+		{{/isNotEmpty}}
+		{{#compare (is itemType '!=' 'MOCODE') '&&' (is itemButton.cartDealButton '==' true)}}
+		<div class="btn_cover">
+			{{#compare itemButton.cartDealInfo.validCartDeal '==' true}}
+			<a href="#" class="u_btn btn_cart_deal _cartDeal">장바구니에 상품담기</a>
+			{{else}}
+				{{#compare itemButton.cartDealInfo.slChnCd '==' '10'}}
+				<a href="#" class="u_btn btn_cart_deal">모바일앱에서 구매가능</a>
+				{{/compare}}
+				{{#compare itemButton.cartDealInfo.slChnCd '==' '20'}}
+				<a href="#" class="u_btn btn_cart_deal">모바일웹에서 구매가능</a>
+				{{/compare}}
+				{{#compare itemButton.cartDealInfo.slChnCd '==' '99'}}
+				<a href="#" class="u_btn btn_cart_deal">장바구니에 상품담기</a>
+				{{/compare}}
+			{{/compare}}
+		</div>
+		{{else}}
+			{{#compare (is itemButton.type '!=' 'SOLDOUT') '&&' (is itemButton.giftDeliv '==' true) }}
+				{{#compare (is itemButton.type '!=' 'LIVE') '&&' (is itemButton.type '!=' 'CLOSE') }}
+					{{#compare itemButton.type '!=' 'OPEN_PRE_PLAN'}}
+					<div class="btn_cover">
+						<a href="#" class="u_btn btn_gift _giftDeliv">
+							{{#compare area '==' 'aside'}}
+							선물하기
+							{{/compare}}
+							{{#compare area '!=' 'aside'}}
+							<span class="text" id="_changeableOptionMsgId" style="display: none">받는 사람이 옵션 변경 가능!</span><span class="blind">선물하기</span>
+							{{/compare}}
+						</a>
+					</div>
+					{{/compare}}
+				{{/compare}}
+			{{/compare}}
+			{{#compare itemButton.cart '==' true}}
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_cart_go _cart">장바구니</a>
+				</div>
+			{{/compare}}
+			{{#compare itemButton.bulkOrder '==' true}}
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_large _bulkOrder">대량구매</a>
+				</div>
+			{{/compare}}
+			{{#compare (is itemButton.nanumDelivButton '==' true) '||' (is itemButton.nanumDelivButton '==' '99')}}
+				<div class="btn_cover">
+					{{#compare itemButton.nanumDelivButton '==' true}}
+					<a href="#" class="u_btn btn_split _nanumDeliv">나눠서구매</a>
+					{{else}}
+					<a class="u_btn btn_split soldout">나눠서 구매(매진)</a>
+					{{/compare}}
+				</div>
+			{{/compare}}
+	
+			{{#compare itemButton.type '==' 'OPEN_PRE_PLAN'}}
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_buy_open">오픈예정 {{itemButton.text}}</a>
+				</div>
+			{{else compare itemButton.type '==' 'LIVE'}}
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_buy_now">방송중 구매 가능</a>
+				</div>
+			{{else compare itemButton.type '==' 'SOLDOUT'}}
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_buy_now">매진</a>
+				</div>
+			{{else compare itemButton.type '==' 'SOLDOUTREINW'}}
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_restock_alarm" id="btnBuy">재입고알림</a>
+				</div>
+			{{else compare itemButton.type '==' 'CLOSE'}}
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_buy_now">판매종료</a>
+				</div>
+			{{else compare itemButton.type '==' 'UNABLE_ORDER'}}
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_buy_now">방송 전 주문이 불가합니다</a>
+				</div>
+			{{else compare itemButton.type '==' 'COUNSEL'}}
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_buy_now _counsel">상담신청</a>
+				</div>
+			{{else compare itemButton.type '==' 'MYOMEE'}}
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_rental _onetouch"><span class="text">전화 상담없이 계약까지 한번에</span>원터치 렌탈</a>
+				</div>
+			{{else compare itemButton.type '==' 'IMMEDIATE'}}	
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_buy_now _counsel">상담신청</a>
+				</div>
+			{{else compare itemButton.type '==' 'COUNSEL_ONETOUCH'}}	
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_large _counsel">상담신청</a>
+				</div>
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_rental _onetouch"><span class="text">전화 상담없이 계약까지 한번에</span>원터치 렌탈</a>
+				</div>
+			{{else compare itemButton.type '==' 'KAKAO_ONLY'}}
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_buy_now">카카오 바로 계약</a>
+				</div>
+			{{else compare itemButton.type '==' 'COSMAX'}}
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_other _cosmax"><span class="text">헤어상태를 진단하면, 나를 위한 솔루션 제공!</span>나만의 헤어케어 제품 만들기</a>
+				</div>
+			{{else compare itemButton.type '==' 'BUY'}}
+				<div class="btn_cover">
+					<a href="#" class="u_btn btn_buy_now _buy">바로구매</a>
+				</div>
+			{{/compare}}
+		{{/compare}}
+	</script>
+	<script id="orderTmpl-orderDelivery" type="text/x-handlebars-template">
+		{{#compare deliveryTypeName '==' 'COLLECT'}}
+			착불배송
+		{{else compare deliveryTypeName '==' 'IMMEDIATE'}}
+			바로사용
+		{{else compare deliveryTypeName '==' 'INSTALLATION'}}
+			배송비 상세설명 참고
+		{{else compare deliveryTypeName '==' 'NONE'}}
+		{{else compareNumber price '>' 0}}
+			배송비<strong>{{{formatNumber price}}}</strong>원{{#if regional}} (지역별로 다를 수 있음){{/if}}
+		{{else}}
+			배송비 무료{{#if regional}} (지역별로 다를 수 있음){{/if}}
+		{{/compare}}
+	</script>
+	<script id="orderTmpl-noticeLayer" type="text/x-handlebars-template">
+		<div class="ly_msgwrap">
+			<div class="ly_msgct">
+				<h1>{{resultTitle}}</h1>
+				<p>{{{resultMsg}}}</p>
+			</div>
+			<div class="ly_btn_area">
+				<div class="btn_in_wrap">
+					<div class="u_td"><button type="button" class="u_btn btn_ok _close"><span class="txt">확인</span></button></div>
+				</div>
+			</div>
+			<a class="btn_lyclr _close">레이어 닫기</a>
+		</div>
+	</script>
+	<!-- 장바구니 레이어 -->
+	<script id="cartTmpl" type="text/x-handlebars-template">
+	<div class="lay_floating" id="_cartComplete" style="top:-132px; display:none" role="alert" aria-live="assertive">
+		<div class="floating_inner">
+			<span class="ico_flt"></span>
+			<p>장바구니 담기<br>성공!</p>
+		</div>
+	</div>
+	</script>
+	<!-- //장바구니 레이어 -->
+	<!-- 나눔배송 레이어 -->
+	<script id="nanumDelivTmpl" type="text/x-handlebars-template">
+	<div class="lay_wrap split_layer" id="_nanumDelivPc" >
+		<span class="center_bx"></span>
+		<div class="ly_msgwrap">
+			<div class="ly_msghead">
+				<h1>나눔 배송 구성</h1>
+			</div>
+			<div class="split_delivery">
+				<ul>
+					{{#each nanumDelivTupleList}}
+					<li role="text" data-item-code="{{nanumDelivItemCd}}" data-item-name="{{unitItemName}}" data-name="{{unitItemName}}" data-unit-item-code="{{nanumDelivUnitCd}}" data-price="{{customerPrice}}" data-qty="1" data-type="NANUM">
+						<span class="title">{{unitItemName}}</span>
+						{{#compare (is minordAmt '>' price) '||' (is minordQty '>' 1)}}
+						<span class="delivery_fee">배송비 <span>{{formatNumber delivCost}}</span>원</span>
+						{{else}}
+						<span class="delivery_fee">배송비 무료</span>
+						{{/compare}}
+					</li>
+					{{/each}}
+				</ul>
+				<button type="button" class="btn_split_buy _btn_split_go">나눠서 구매하기</button>
+			</div>
+			<a href="#" class="btn_lyclr _closeNanumLayer">레이어 닫기</a>
+		</div>
+	</div>
+	</script>
+	
+		</div>
+		<!-- 배너 -->
+		<!-- //배너 -->
+      </div>
+	  <!-- 연관상품 -->
+	  <div class="prd_other_wrap" style="display:none;">
+		<h3 class="blind">연관상품</h3>
+		<div class="prd_other_sec" id="_RECOMMEND">
+		</div>
+	  <!-- //연관상품 -->
+	  </div>
+
+      <!-- 하단 -->
+      <!-- [D] 최상단까지 스크롤시 is_fixed 클래스 추가, 스크롤 내리면 다시 제거 -->
+      <div class="prd_detail_wrap">
+        <!-- 틀고정 영역 -->
+        <div class="fixed_wrap">
+          <div class="detail_wrap">
+            <div class="u_tabmenu_wrap">
+              <ul class="u_tabmenu dtype" id="_menuTab">
+              <script id="tabButtonTmpl" type="text/x-handlebars-template">
+			  <li data-tab="_DETAIL" class="on"><a href="#" id="detailTab" spcid="DTAI____tab__detail__"
+													class="gaclass"
+													ga-category="일반상세_NONE_NONE" 
+													ga-action="NONE_tab_탭" 
+													ga-label="NONE_상세설명/NONE_NONE_NONE_NONE_NONE" 
+													ga-clickCode="DTAI____tab__detail__"
+													ga-actionType="클릭" 
+													ga-4depth="000" 
+													ga-7depth="000" 
+													ga-PGMCode="NONE" 
+													ga-PGMName="NONE" 
+													ga-PGMVariant="NONE" 
+													ga-9depth="NONE" 
+													ga-productCode="NONE">상세설명</a></li>
+			  <li data-tab="_INFO" class=""><a href="#" id="infoTab" spcid="DTAI____tab__benefit__"
+												class="gaclass"
+												ga-category="일반상세_NONE_NONE" 
+												ga-action="NONE_tab_탭" 
+												ga-label="NONE_혜택배송/NONE_NONE_NONE_NONE_NONE" 
+												ga-clickCode="DTAI____tab__benefit__"
+												ga-actionType="클릭" 
+												ga-4depth="000" 
+												ga-7depth="000" 
+												ga-PGMCode="NONE" 
+												ga-PGMName="NONE" 
+												ga-PGMVariant="NONE" 
+												ga-9depth="NONE" 
+												ga-productCode="NONE">혜택/배송</a></li>
+			  <li data-tab="_MENTION" class=""><a href="#" id="mentionTab" spcid="DTAI____tab__review__"
+													class="gaclass"
+													ga-category="일반상세_NONE_NONE" 
+													ga-action="NONE_tab_탭" 
+													ga-label="NONE_상품평/NONE_NONE_NONE_NONE_NONE" 
+													ga-clickCode="DTAI____tab__review__"
+													ga-actionType="클릭" 
+													ga-4depth="000" 
+													ga-7depth="000" 
+													ga-PGMCode="NONE" 
+													ga-PGMName="NONE" 
+													ga-PGMVariant="NONE" 
+													ga-9depth="NONE" 
+													ga-productCode="NONE">리뷰<span class="count" style="display:none;"></span></a></li>
+			  <li data-tab="_QNA" class=""><a href="#" id="qnaTab" spcid="DTAI____tab__qna__"
+												class="gaclass"
+												ga-category="일반상세_NONE_NONE" 
+												ga-action="NONE_tab_탭" 
+												ga-label="NONE_상품문의/NONE_NONE_NONE_NONE_NONE" 
+												ga-clickCode="DTAI____tab__qna__"
+												ga-actionType="클릭" 
+												ga-4depth="000" 
+												ga-7depth="000" 
+												ga-PGMCode="NONE" 
+												ga-PGMName="NONE" 
+												ga-PGMVariant="NONE" 
+												ga-9depth="NONE" 
+												ga-productCode="NONE">Q&amp;A<span class="count" style="display:none;"></span></a></li>
+			  </script>
+			  </ul>
+          	</div>
+          </div>
+          <div class="aside_wrap"></div>
+          
+        </div>
+        <!-- //틀고정 영역 -->
+        <div class="contents_wrap">
+          <!-- 상세설명 -->
+          <div class="prd_tab_info" id="_DETAIL" style="display: block;">
+          </div>
+          <!-- //상세설명 -->
+          <!-- 혜택/배송 -->
+          <div class="prd_tab_info" id="_INFO" style="display: block;">
+          	<a name="info" class="anchors_area"></a>
+          </div>
+          <!-- //혜택/배송 -->
+          <!-- 상품평 -->
+          <div class="prd_tab_info" id="_MENTION" style="display: block;">
+			
+
+
+
+
+<!-- 메인창 - 평균 별점, 프리미엄|별점 탭,  옵션, 정렬기준 -->
+<script id="mentionTabTmpl" type="text/x-handlebars-template">
+<h3 class="prd_sec_tit" tabindex="-1">상품평</h3>
+
+<!-- review_summary -->
+<div class="review_summary">
+
+<!-- 단품일 경우만 노출 ================================================= -->
+{{#if isSingleItem}}
+ <!-- 상품평 상품별점정보 -->
+  <div class="review_cont">
+    <div class="star_wrap">
+      <div class="star_default">
+        <!-- [D] 점수가 같이 바뀌어야 합니다 -->
+            <span class="star_score" style="width:{{averageScoreRate}}%"><span class="blind">{{averageScoreRate}}점</span></span>
+        </div>
+      <p class="score_noti">상품평을 작성하신 <strong class="txt_blue">{{formatNumber clickCnt}}명</strong>의 평균 별점입니다.</p>
+    </div>
+  </div>
+
+  {{#compare valid '==' false}}
+  <div class="review_sub">
+    <ul class="info_lst">
+    <li>본 상품은 개인의 주관적 의견에 의해 상품의 기능 및 효과에 대한 오해의 소지가 있는 상품군으로 분류되어, 상품평을 게시하고 있지 않습니다.</li>
+    <li>단, 구매자의 경우 상품평 작성은 가능하며, CJ ONE 포인트 지급 혜택은 동일합니다.</li>
+    </ul>
+  </div>
+  {{/compare}}
+
+{{/if}}
+<!-- //단품일 경우만 노출 ================================================= -->
+
+<!-- 상품평 설문조사 -->
+ {{#if valid}}
+  {{#isNotEmpty mentionQuests}}
+  <div class="review_sub">
+
+    {{#each mentionQuests}}
+    <div class="flt_area{{#if @last}} flt_rgt{{/if}}">
+      <dl class="flt_inner">
+        <dt><strong class="txt_blod">{{questDescription}}</strong> ({{formatNumber totalQuestCount}}명)</dt>
+
+		{{#each mentionQuestArticles}}
+        <dd>
+          <span class="review_txt">{{articleDescription}}</span>
+          <span class="review_bar"><span style="width:{{rate}}%" class="review_score"></span></span>
+        </dd>
+		{{/each}}
+
+      </dl>
+    </div>
+    {{/each}}
+  </div>
+  {{/isNotEmpty}}
+ {{/if}}
+
+
+</div>
+<!-- //review_summary -->
+
+
+
+{{#if valid}}
+<!-- 프리미엄 상품평 -->
+<div class="review_premium">
+
+  <h4 class="review_tit">프리미엄 상품평<span></span></h4>
+
+  <!-- 옵션, 정렬기준 부모영역 -->
+  <div class="option_area">
+
+  <!-- 옵션 영역 -->
+  {{#isNotEmpty mentionDiffs}}
+    <ul class="option_sel">
+	{{#each mentionDiffs}}
+    <li>
+       <select title="{{title}}" class="u_d_sel" data-index="{{@index}}">
+         <option value="">{{title}} 전체</option>
+		 {{#each diffs}}
+         <option value="{{diffId}}">{{name}}</option>
+         {{/each}}
+       </select>
+    </li>
+	{{/each}}
+    </ul>
+  {{/isNotEmpty}}
+
+
+  <!-- 정렬기준 영역 -->
+    <ul class="option_menu">
+
+    <li class="on" id="cbNewUpdateSort"><a href="#"><span class="ico_check" spcid="DTAI____review__sortnew__"></span>최신순</a></li>
+    <li id="cbScoreLowSort"><a href="#"><span class="ico_check" spcid="DTAI____review__sortasc__"></span>별점낮은순</a></li>
+    <li id="cbScoreHighSort"><a href="#"><span class="ico_check" spcid="DTAI____review__sortdesc__"></span>별점높은순</a></li>
+
+    </ul>
+
+    <!-- [D] 프리미엄 일 때만 노출됨 -->
+    <div class="option_chkbx">
+        <span class="u_chkbx">
+            <input id="cbPhotegoodView" type="checkbox">
+            <label for="cbPhotegoodView">포토상품평만 보기<span class="bin"></span></label>
+        </span>
+    </div>
+
+  </div>
+  <!-- //옵션, 정렬기준 부모영역 -->
+
+
+  <ul class="review_lst">
+  <!-- 상품평 내용 -->
+
+  </ul>
+
+  <div class="u_pagination">
+       <div class="pagination_inner">
+       <!-- 페이지 내용 -->
+
+       </div>
+  </div>
+</div>
+<!-- //프리미엄 상품평 -->
+
+
+
+<!-- 한줄 상품평 -->
+<div class="review_line">
+
+  <h4 class="review_tit">한줄 상품평<span></span></h4>
+
+  <!-- 옵션, 정렬기준 부모영역 -->
+  <div class="option_area">
+
+  <!-- 옵션 영역 -->
+  {{#isNotEmpty mentionDiffs}}
+    <ul class="option_sel">
+    {{#each mentionDiffs}}
+    <li>
+      <select title="{title}}" class="u_d_sel" data-index="{{@index}}" >
+         <option value="">{{title}} 전체</option>
+         {{#each diffs}}
+         <option value="{{diffId}}">{{name}}</option>
+         {{/each}}
+      </select>
+    </li>
+    {{/each}}
+    </ul>
+  {{/isNotEmpty}}
+
+  <!-- 정렬기준 영역 -->
+    <ul class="option_menu">
+    <li class="on" id="cbNewUpdateSort_l"><a href="#"><span class="ico_check"></span>최신순</a></li>
+    <li id="cbScoreLowSort_l"><a href="#"><span class="ico_check"></span>별점낮은순</a></li>
+    <li id="cbScoreHighSort_l"><a href="#"><span class="ico_check"></span>별점높은순</a></li>
+    </ul>
+
+  </div>
+  <!-- //옵션, 정렬기준 부모영역 -->
+
+
+  <ul class="review_lst">
+  <!-- 한줄 상품평 내용 -->
+
+  </ul>
+  <div class="u_pagination">
+       <div class="pagination_inner">
+	   <!-- 페이지 내용 -->
+
+       </div>
+  </div>
+</div>
+<!-- //한줄 상품평 -->
+
+{{else}}
+
+<!--
+<div class="review_sub">
+  <ul class="info_lst">
+  <li>본 상품은 개인의 주관적 의견에 의해 상품의 기능 및 효과에 대한 오해의 소지가 있는 상품군으로 분류되어, 상품평을 게시하고 있지 않습니다.</li>
+  <li>단, 구매자의 경우 상품평 작성은 가능하며, CJ ONE 포인트 지급 혜택은 동일합니다.</li>
+  </ul>
+</div>
+-->
+
+<div id='_optionLst'>
+<ul class="review_lst option_lst">
+<!-- 식품 상품평 내용 -->
+</ul>
+<div class="u_pagination">
+   <div class="pagination_inner">
+   <!-- 페이지 내용 -->
+   </div>
+</div>
+
+</div>
+
+{{/if}}
+</script>
+
+<!-- 프리미엄 리스트 아이템 정의  -->
+<script id="premiumTmpl" type="text/x-handlebars-template">
+{{#mentionList}}
+<li {{#compare reportStat '==' '10'}}class="dim"{{/compare}} data-page-num={{pageNum}}>
+    <div class="star_default">
+        <!-- [D] 점수가 같이 바뀌어야 합니다 -->
+        <span class="star_score" style="width:{{gradeRate}}%"><span class="blind">{{gradeRate}}점</span></span>
+    </div>
+
+	{{#compare reportStat '!=' '10'}}
+	{{#if ds_imageInfo}}
+    <div class="review_inner">
+	{{/if}}                                           <!-- 이미지 있을 경우 -->
+	{{/compare}}
+
+
+        <div class="review_cont">
+        <a href="#" class="review_more" id="premium_{{bbsNo}}" reportStat="{{reportStat}}" clickspcid="prem_read" spcid="" onclick="return false;">
+            <span class="review_option">
+				{{optionName}}
+				{{#isNotEmpty bodyText}}
+				<span class="ico_bar"></span>
+				{{bodyText}}
+				{{/isNotEmpty}}
+			</span>
+            <p class="review_scr _nbrTag" style="display: block;">{{{contents}}}</p>
+			<p class="review_scr _brTag"  style="display: none;">{{{contentsBR}}}</p>
+        </a>
+        </div>
+
+      {{#compare reportStat '!=' '10'}}
+      {{#each ds_imageInfo}}
+      <div class="review_img">
+		<img src="{{../../imgUrl}}/cjupload/valbbs_img/{{imgName}}" width="80px" height="80px" alt="리뷰 섬네일"/>
+      </div>
+	  {{/each}}
+      {{/compare}}
+
+	  {{#compare beautyYn '==' 'Y'}}
+      <div class="gift_msg">CJ ENM으로부터 제품을 무료로 제공받아 작성한 후기입니다.</div>
+	  {{/compare}}
+
+      <span class="review_info">
+		<em>{{nickname}}</em><span class="ico_bar"></span>{{insertDate}}
+
+		{{#compare reportStat '!=' '10'}}
+	  	<a href="#" class="txt_report" data-bad-bbsno={{bbsNo}} spcid="DTAI____review__report__" onclick="return false;">신고하기</a>
+		{{/compare}}
+	  </span>
+
+      <button type="button" class="u_btn"><span>닫기</span></button>
+
+	{{#compare reportStat '!=' '10'}}
+	{{#if ds_imageInfo}}
+    </div>
+	{{/if}}
+	{{/compare}}
+
+</li>
+{{/mentionList}}
+</script>
+
+<!-- 페이지 정의  -->
+<script id="mentionPageTmpl" type="text/x-handlebars-template">
+{{#compare startPageNumber '!==' 1}}
+<a href="#" class="btn_pn_prev ten_type" onclick="return false;"><span class="ico_arr"></span>이전 10페이지</a>
+{{/compare}}
+
+{{#compare curPage '!==' 1}}
+<a href="#" class="btn_pn_prev" onclick="return false;"><span class="ico_arr"></span>이전 페이지</a>
+{{/compare}}
+
+{{#each pageItemList}}
+{{#compare ../curPage '==' _index}}
+<strong class="lk_pn on">{{_index}}</strong>
+{{else}}
+<a href="#" class="lk_pn" onclick="return false;">{{_index}}</a>
+{{/compare}}
+{{/each}}
+
+{{#compare totalPage '!==' curPage}}
+<a href="#" class="btn_pn_next" onclick="return false;"><span class="ico_arr"></span>다음 페이지</a>
+{{/compare}}
+
+{{#compare endPageNumber '!==' totalPage}}
+<a href="#" class="btn_pn_next ten_type" onclick="return false;"><span class="ico_arr"></span>다음 10페이지</a>
+{{/compare}}
+</script>
+
+
+<!-- 한줄 리스트 아이템 정의  -->
+<script id="simpleTmpl" type="text/x-handlebars-template">
+{{#mentionList}}
+  <li data-page-num={{pageNum}} >
+    <div class="star_default">
+      <span class="star_score" style="width:{{gradeAvg}}%"><span class="blind">{{gradeAvg}}점</span></span>
+    </div>
+
+    <div class="review_cont">
+
+            <div class="review_more">
+
+				{{#isNotEmpty optionName}}
+                <span class="review_option">{{optionName}}
+					{{#isNotEmpty bodyText}}
+					<span class="ico_bar"></span>
+                       {{bodyText}}
+					{{/isNotEmpty}}
+                </span>
+                <span class="ico_bar"></span>
+				{{/isNotEmpty}}
+
+                <span class="review_info"><em>{{nickname}}</em><span class="ico_bar"></span>{{insertDate}}</span>
+                <p class="review_scr">{{mention}}</p>
+            </div>
+
+			{{#compare beautyYn '==' 'Y'}}
+      		<div class="gift_msg">CJ ENM으로부터 제품을 무료로 제공받아 작성한 후기입니다.</div>
+	  		{{/compare}}
+
+      </div>
+  </li>
+{{/mentionList}}
+</script>
+
+
+<!-- 식품 리스트 아이템 정의  -->
+<script id="foodTmpl" type="text/x-handlebars-template">
+{{#mentionList}}
+<li data-page-num={{pageNum}}>
+  <div class="star_default">
+    <!-- [D] 점수가 같이 바뀌어야 합니다 -->
+    <span class="star_score" style="width:{{gradeAvg}}%"><span class="blind">{{gradeAvg}}점</span></span>
+  </div>
+  <div class="review_cont">
+	<div class="review_more">
+
+    {{#isNotEmpty option1Nm}}
+	<span class="review_option">{{option1Nm}}</span>
+    <span class="ico_bar"></span>
+    {{/isNotEmpty}}
+
+	<span class="review_info"><em>{{nickname}}</em><span class="ico_bar"></span>{{insertDate}}</span>
+	</div>
+  </div>
+</li>
+{{/mentionList}}
+</script>
+
+<!-- 상품평 미존재시 노출화면 정의  -->
+<script id="mentionEmptyTmpl" type="text/x-handlebars-template">
+<h3 class="prd_sec_tit" tabindex="-1">상품평</h3>
+<div class="review_guide">
+  <div class="review_no">
+	<p>등록된 상품평이 없습니다.</p>
+  </div>
+  <div class="guide_tbl">
+
+	<p class="txt_guide">
+	  <strong class="bg_guide">상품평 쓰면, CJ ONE 포인트를 드려요!</strong>
+	  <span>(마이존&gt;상품평 작성/조회에서 작성 가능)</span>
+	</p>
+
+	<table>
+	<caption><span class="blind">상품평 안내</span></caption>
+		<colgroup>
+			<col style="width:339px">
+			<col>
+		</colgroup>
+	<thead>
+	  <tr>
+		<th>한줄 상품평</th>
+		<th>프리미엄 상품평</th>
+	  </tr>
+	</thead>
+	<tbody>
+	<tr>
+	  <td>
+		  <p class="point_guide"><span class="ico_point point10">10P</span>5자 이상</p>
+	  </td>
+	  <td>
+		  <p class="point_guide"><span class="ico_point point150">150P</span>50자 이상</p>
+		  <span class="ico_plus"></span>
+		  <p class="point_guide"><span class="ico_point point80">80P</span>포토 추가</p>
+	  </td>
+	</tr>
+	</tbody>
+	</table>
+  </div>
+</div>
+</script>
+
+
+<!-- 묶음코드 마크업(참고용) -->
+<script id="mocodeMentionTabTmpl" type="text/x-handlebars-template">
+  <h3 class="blind">상품평</h3>
+
+  <div class="review_summary" style="display: block;">
+
+    <div class="bunch_info">
+      <!-- 글자수 최대 30자 -->
+      <select title="선택옵션" class="u_d_sel">
+            <option value="">상품 전체</option>
+            <option value="1">선택1) 아디다스 듀라모 슬라이드 G15890</option>
+			<option value="2">선택2) 아디다스 듀라모 슬라이드 G15890</option>
+			<option value="3">선택3) 아디다스 듀라모 슬라이드 G15890</option>
+	  </select>
+      <!-- 상품 별점 및 만족도 -->
+      <div class="bunch_item">
+        <img src="" width="134" height="134" alt="상품 섬네일" class="bunch_img">
+        <div class="bunch_name">
+          <div class="bunch_name_inner">
+            <strong>아디다스 듀라모 슬라이드 G15890</strong>
+            <span class="review_info"><em class="txt_blue">5건</em><span class="ico_bar"></span>품질 90점<span class="ico_bar"></span>배송 90점</span>
+            <div class="star_wrap">
+              <div class="star_default">
+                <!-- [D] 점수가 같이 바뀌어야 합니다 -->
+          			<span class="star_score" style="width:60%"><span class="blind">60점</span></span>
+          		</div>
+              <p class="score_noti">상품평을 작성하신 <strong class="txt_blue">139명</strong>의 평균 별점입니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- //상품 별점 및 만족도 -->
+	  <!-- 상품요약정보 -->
+      <div class="review_sub">
+      <div class="flt_area">
+        <dl class="flt_inner">
+          <dt><strong class="txt_blod">사이즈</strong> (40명)</dt>
+          <dd>
+            <span class="review_txt">잘 맞는다</span>
+            <span class="review_bar"><span style="width:45%" class="review_score"></span></span>
+          </dd>
+          <dd>
+            <span class="review_txt">크다</span>
+            <span class="review_bar"><span style="width:65%" class="review_score"></span></span>
+          </dd>
+          <dd>
+            <span class="review_txt">작다</span>
+            <span class="review_bar"><span style="width:25%" class="review_score"></span></span>
+          </dd>
+        </dl>
+      </div>
+      <div class="flt_area flt_rgt">
+        <dl class="flt_inner">
+          <dt><strong class="txt_blod">색상</strong> (40명)</dt>
+          <dd>
+            <span class="review_txt">화면과 같다</span>
+            <span class="review_bar"><span style="width:45%" class="review_score"></span></span>
+          </dd>
+          <dd>
+            <span class="review_txt">밝다</span>
+            <span class="review_bar"><span style="width:75%" class="review_score"></span></span>
+          </dd>
+          <dd>
+            <span class="review_txt">어둡다</span>
+            <span class="review_bar"><span style="width:35%" class="review_score"></span></span>
+          </dd>
+        </dl>
+      </div>
+      </div>
+      <!-- //상품요약정보 -->
+    </div>  <!-- //bunch_info     -->
+
+
+  </div>      <!-- //review_summary -->
+
+
+
+
+  <!-- 프리미엄 상품평 -->
+  <div class="review_premium">
+    <h4 class="review_tit">프리미엄 상품평(99)</h4>
+    <div class="option_area">
+      <ul class="option_sel">
+      <li>
+        <select title="선택옵션" class="u_d_sel">
+  			<option selected="">165~170cm</option>
+  			<option>170~175cm</option>
+  		</select>
+      </li>
+      <li>
+        <select title="선택옵션" class="u_d_sel">
+  			<option selected="">색상 전체</option>
+  			<option>블랙</option>
+  			<option>네이비</option>
+  		</select>
+      </li>
+      </ul>
+      <ul class="option_menu">
+      <li class="on"><a href="#"><span class="ico_check">선택됨</span>최신순</a></li>
+      <li><a href="#">별점낮은순</a></li>
+      <li><a href="#">별점높은순</a></li>
+      </ul>
+      <!-- [D] 프리미엄 일 때만 노출됨 -->
+      <div class="option_chkbx">
+        <span class="u_chkbx">
+    		<input type="checkbox" id="ckbx1">
+    		<label for="ckbx1">포토상품평만 보기<span class="bin"></span></label>
+    	</span>
+      </div>
+    </div>
+    <ul class="review_lst">
+    <li>
+      <div class="star_default">
+        <!-- [D] 점수가 같이 바뀌어야 합니다 -->
+        <span class="star_score" style="width:100%"><span class="blind">100점</span></span>
+      </div>
+	  <div class="review_cont">
+        <a href="#" class="review_more">
+          <strong class="review_item">선택 3) 프랑스 샹달프잼 5병 + 선물 포장세트</strong>
+          <span class="review_option">네이비블랙, 55<span class="ico_bar"></span>155~160cm, 하체통통족</span>
+					<p class="review_scr">어제 입고 나갔는데 진짜 잘 늘어나서 너무 편해요 쭈구려 앉아 있을 수도 있고 몸에 딱 핏되는게 아주 맘에 들어요.</p>
+  		</a>
+	  </div>
+      <span class="review_info"><em>fmow***</em><span class="ico_bar"></span>2016.07.28<a href="#" class="txt_report">신고하기</a></span>
+      <button type="button" class="u_btn"><span>닫기</span></button>
+    </li>
+    </ul>
+    <div class="u_pagination">
+			<div class="pagination_inner">
+				<a href="#" class="btn_pn_prev ten_type"><span class="ico_arr"></span>이전 10페이지</a>
+				<a href="#" class="btn_pn_prev"><span class="ico_arr"></span>이전 페이지</a>
+				<strong class="lk_pn on">1</strong>
+				<a href="#" class="lk_pn">2</a>
+				<a href="#" class="lk_pn">3</a>
+				<a href="#" class="lk_pn">4</a>
+				<a href="#" class="lk_pn">5</a>
+				<a href="#" class="lk_pn">6</a>
+				<a href="#" class="lk_pn">7</a>
+				<a href="#" class="lk_pn">8</a>
+				<a href="#" class="lk_pn">9</a>
+				<a href="#" class="lk_pn">10</a>
+				<a href="#" class="btn_pn_next"><span class="ico_arr"></span>다음 페이지</a>
+				<a href="#" class="btn_pn_next ten_type"><span class="ico_arr"></span>다음 10페이지</a>
+			</div>
+		</div>
+  </div>
+  <!-- //프리미엄 상품평 -->
+
+
+
+  <!-- 한줄 상품평 -->
+  <div class="review_line">
+    <h4 class="review_tit">한줄 상품평(99)</h4>
+    <div class="option_area">
+      <ul class="option_sel">
+      <li>
+        <select title="선택옵션" class="u_d_sel">
+  			<option selected="">165~170cm</option>
+  			<option>170~175cm</option>
+  		</select>
+      </li>
+      <li>
+        <select title="선택옵션" class="u_d_sel">
+  			<option selected="">색상 전체</option>
+  			<option>블랙</option>
+  			<option>네이비</option>
+  		</select>
+      </li>
+      </ul>
+      <ul class="option_menu">
+      <li class="on"><a href="#"><span class="ico_check">선택됨</span>최신순</a></li>
+      <li><a href="#">별점낮은순</a></li>
+      <li><a href="#">별점높은순</a></li>
+      </ul>
+    </div>
+    <ul class="review_lst">
+    <li>
+      <div class="star_default">
+        <!-- [D] 점수가 같이 바뀌어야 합니다 -->
+        <span class="star_score" style="width:60%"><span class="blind">60점</span></span>
+      </div>
+      <div class="review_cont">
+				<div class="review_more">
+          <strong class="review_item">선택 3) 프랑스 샹달프잼 5병 + 선물 포장세트</strong>
+					<span class="review_option">네이비블랙, 55<span class="ico_bar"></span>155~160cm, 하체통통족</span>
+          <span class="ico_bar"></span>
+					<span class="review_info"><em>fmow***</em><span class="ico_bar"></span>2016.07.28</span>
+					<p class="review_scr">어제 입고 나갔는데 진짜 잘 늘어나서 너무 편해요 쭈구려 앉아 있을 수도 있고 몸에 딱 핏되는게 아주 맘에 들어요.</p>
+				</div>
+  		</div>
+    </li>
+    </ul>
+    <div class="u_pagination">
+			<div class="pagination_inner">
+				<a href="#" class="btn_pn_prev ten_type"><span class="ico_arr"></span>이전 10페이지</a>
+				<a href="#" class="btn_pn_prev"><span class="ico_arr"></span>이전 페이지</a>
+				<strong class="lk_pn on">1</strong>
+				<a href="#" class="lk_pn">2</a>
+				<a href="#" class="lk_pn">3</a>
+				<a href="#" class="lk_pn">4</a>
+				<a href="#" class="lk_pn">5</a>
+				<a href="#" class="lk_pn">6</a>
+				<a href="#" class="lk_pn">7</a>
+				<a href="#" class="lk_pn">8</a>
+				<a href="#" class="lk_pn">9</a>
+				<a href="#" class="lk_pn">10</a>
+				<a href="#" class="btn_pn_next"><span class="ico_arr"></span>다음 페이지</a>
+				<a href="#" class="btn_pn_next ten_type"><span class="ico_arr"></span>다음 10페이지</a>
+			</div>
+		</div>
+  </div>
+  <!-- //한줄 상품평 -->
+</script>
+          </div>
+          <!-- //상품평 -->
+          <!-- Q&A -->
+          <div class="prd_tab_info" id="_QNA" style="display: block;">
+			
+
+
+
+
+<script id="qnaFrameTmpl" type="text/x-handlebars-template">
+<!-- QA 조건 영역 -->
+<h3 class="prd_sec_tit" id="_h3_qna">Q&amp;A</h3>
+<div class="qna_delivery">
+	<!-- <p class="txt_noti">배송, 교환 및 반품, 추가 요구사항 등에 대한 문의는 고객센터 1:1 질문하기를 이용해주세요</p> -->
+	<!-- <a href="#" class="u_btn btn_qna_delivery"><span class="txt">배송/교환/반품 문의</span></a> -->
+	<p class="txt_noti">배송/교환/반품/사은품 등 상품정보 외 문의는 '고객센터 1:1문의'를 클릭하세요.</p>
+	<a href="#" id="qnaOneToOnePageMove" class="u_btn btn_qna_delivery"><span class="txt">고객센터 1:1문의</span></a>
+
+</div>
+<div class="option_area qna_option">
+  {{#compare isMocode '==' true }}
+
+  <!-- TO-BE 묶음상세 -->
+
+  <!-- [D] 옵션 드롭다운 박스 기본 .option_select, 클릭시 open 클래스 추가, 옵션 선택 후 selected 클래스 추가 -->
+  <div class="option_select">
+	<div class="select_bx">
+
+	  <a href="#" class="select_txt" data-item-code="" onclick="return false;" id="_btnQnaOptSelect" role="button" aria-haspopup="listbox" aria-expanded="false">상품 전체<span class="ico_arr"></span></a>
+
+	  <div class="option_list_wrap">
+		<!-- [D] 옵션기술서 목록인 경우 img_type 클래스 추가 -->
+		<div class="option_list img_type">
+		  <ul>
+		    <li class="all_prd on">
+				<a href="#" data-type="{{itemTypeCode}}" data-item-code="{{itemCode}}" onclick="return false;">
+			       <p class="option_item">상품 전체</p>
+				   <span class="ico_check"></span>
+				</a>
+			</li>
+
+		  {{#each optionList}}
+			<li class="{{#compare (is @index '==' ../selectedIndex) '||' (is isSelected '==' true)}} on{{/compare}}">
+
+			  <a href="#" data-type="{{itemTypeCode}}" data-item-code="{{itemCode}}">
+			<!--2017.09.21. thumbor pattern 변경-->
+				{{#compare (is saleType '==' 'A') '&&' (is slRdyYn '==' 'Y') }}
+                    <span class="dim_soldout"><span class="txt_sold">오픈예정</span><span class="bg_dimmed"></span></span>
+                {{/compare}}
+				<span class="fn_valign">
+					<img src="{{getThumbUrl defaultUrl 83 83 '' true}}" data-src="{{getThumbUrl imageUrl 160 160 '' true}}" alt="상품 섬네일">
+				</span>
+			<!--//2017.09.21-->
+				<div class="img_type_inner">
+				  <p class="option_item">상품{{calc @index '+' 1}}) {{name}}</p>
+
+				  <div class="price_bx">
+					{{#compare saleType '==' 'I'}}
+
+					{{else compare saleType '!=' 'A'}}
+						<span class="txt_price"><span class="ff_price">{{{formatNumber price}}}</span>원</span>
+
+					{{else}}
+						<span class="txt_price"><span class="ff_price">{{{formatNumber price}}}</span>원</span>
+					<!--
+						{{#isNotEmpty coupons}}<span class="ico_bar"></span><span class="txt_pink">쿠폰<strong class="ff_price">18</strong>%</span>{{/isNotEmpty}}
+						{{#isNotEmpty coupons}}<span class="ico_bar"></span><span class="txt_pink">쇼플<strong class="ff_price">8</strong>%</span>{{/isNotEmpty}}
+						{{#isNotEmpty arsDiscountAmt}}<span class="ico_bar"></span><span class="txt_pink">TV쇼핑 동일 혜택<strong class="ff_price">{{{formatNumber arsDiscountAmt}}}</strong>원</span>{{/isNotEmpty}}
+						{{#isNotEmpty gift}}<span class="ico_bar"></span><span>사은품</span>{{/isNotEmpty}}
+					-->
+					{{/compare}}
+				  </div>
+				</div>
+				<span class="center_bx">&nbsp;</span>
+				<span class="ico_check"></span>
+			  </a>
+			</li>
+		  {{/each}}
+
+
+		  </ul>
+		</div>
+	  </div>
+	</div>
+  </div>
+  <!-- //TO-BE 묶음상세 -->
+
+
+  {{else}}
+  <!-- 일반상세 -->
+  <ul class="option_menu">
+  <li>
+	<span class="u_chkbx">
+		<input type="checkbox" id="myqna">
+		<label for="myqna">나의 질문<span class="bin"></span></label>
+	</span>
+  </li>
+  <li>
+	<span class="u_chkbx">
+		<input type="checkbox" id="answerd_q">
+		<label for="answerd_q">답변된 질문<span class="bin"></span></label>
+	</span>
+  </li>
+  </ul>
+  {{/compare}}
+
+
+  <button type="button" class="u_btn btn_qna" id="registQna" title="새 창 열림"><span>상품문의</span></button>
+</div>
+<!-- //QA 조건 영역 -->
+
+<!-- 식품 제한 영역 주석처리 <div id="_qnaFood"></div> -->
+
+<!-- QA 내용 영역 -->
+<ul class="review_lst" id="_qnaList">
+</ul>
+
+<div class="u_pagination">
+  <div class="pagination_inner">
+  <!-- 페이지 내용 -->
+  </div>
+</div>
+<!-- //QA 내용 영역 -->
+</script>
+
+
+<script id="qnaTabTmpl" type="text/x-handlebars-template">
+{{#each qnaList}}
+	{{#compare type '==' 'FAQ' }}
+    <!-- [D] 자주 묻는 qna -->
+    <li data-page-num={{page}} data-item-code="{{itemCode}}" data-seq="{{seq}}" data-user-id="{{hiddenMemberId}}" data-insert-date="{{insertDateTimestamp}}" clickspcid="list_quest">
+      <div class="question_bx no_answer">
+    	<a href="#" class="qna_more" role="button" aria-expanded="false">
+    	  <strong class="qna_often"><span class="blind">자주 묻는 Q&amp;A</span></strong>
+    			<div class="review_cont">
+					{{#compare ../isMocode '==' true }}
+                    <strong class="review_item">{{itemName}}</strong>
+					{{/compare}}
+
+    				<p class="review_scr _srTag"  style="display: block;">{{contentsShort}}</p>
+				    <p class="review_scr _nSrTag" style="display: none;">{{contents}}</p>
+
+    				<span class="review_info"><em>{{hiddenMemberId}}</em><span class="ico_bar"></span>{{insertDateTimestamp}}</span>
+    			</div>
+    	  <span class="ico_arr"></span>
+    	</a>
+
+		{{#compare myQna '==' false }}
+    	<div class="btn_area">
+    	  <button type="button" class="u_btn" id="replyBtn" data-item-code="{{itemCode}}" data-seq="{{seq}}" data-user-id="{{hiddenMemberId}}" data-insert-date="{{insertDateTimestamp}}"><span>답변하기</span></button>
+    	</div>
+		{{/compare}}
+      </div>
+    </li>
+
+    {{else}}
+
+    <li data-page-num={{page}} data-item-code="{{itemCode}}" data-user-id="{{hiddenMemberId}}" data-insert-date="{{insertDateTimestamp}}" data-seq="{{seq}}" data-my-qna="{{myQna}}" data-scrwrt-yn="{{scrwrtYn}}" data-qust-tran-bbsc-no="{{qustTranBbscNo}}" clickspcid="list_quest">
+      {{#compare replyCount '==' 0}}
+      <div class="question_bx no_answer">
+    	<a href="#" class="qna_more" role="button" aria-expanded="false">
+    	  <strong class="qna_state">미답변</strong>
+      {{^}}
+      <div class="question_bx">
+	    <a href="#" class="qna_more" role="button" aria-expanded="false">
+	       <strong class="qna_state">답변</strong>
+      {{/compare}}
+
+    		<div class="review_cont">
+				{{#compare ../isMocode '==' true }}
+                <strong class="review_item">{{itemName}}</strong>
+				{{/compare}}
+
+    			<p class="review_scr {{#unless myQna}}{{#if scrwrtYn}}review_scr2{{/if}}{{/unless}} _srTag"  style="display: block;">{{contentsShort}}</p>
+				<p class="review_scr _nSrTag" style="display: none;">{{contents}}</p>
+				
+				<span class="review_info">
+					{{#if scrwrtYn}}<span class="ico_scr">비밀글</span>{{/if}}
+				<em>{{hiddenMemberId}}</em><span class="ico_bar"></span>{{insertDateTimestamp}}</span>
+    		</div>
+    	    <span class="ico_arr"></span>
+    	</a>
+
+    	<div class="btn_area">
+		{{#compare (is myQna '==' true) '&&' (is replyCount '==' 0) }}
+		  <button type="button" id="modifyBtn" class="u_btn" id="modifyBtn" data-item-code="{{itemCode}}" data-seq="{{seq}}" data-user-id="{{hiddenMemberId}}" data-contents="{{contents}}" data-insert-date="{{insertDateTimestamp}}" data-scrwrt-yn="{{scrwrtYn}}" style="display:none"><span>수정하기</span></button>
+		  <button type="button" id="deleteBtn" class="u_btn" id="deleteBtn" data-item-code="{{itemCode}}" data-seq="{{seq}}" data-user-id="{{hiddenMemberId}}" data-contents="{{contents}}" data-insert-date="{{insertDateTimestamp}}" style="display:none"><span>삭제하기</span></button>
+		{{/compare}}
+    	</div>
+      </div>
+    </li>
+
+    {{/compare}}
+{{/each}}
+</script>
+
+<!-- 답변영역 -->
+<script id="qnaReplyTemplate" type="text/x-handlebars-template">
+{{#each qnaReplys}}
+<div class="answer_bx">
+	<div class="text">{{recontents}}</div>
+	<span class="answer_info"><em>{{gubunText}}</em><span class="ico_bar"></span>{{insertDateTimestamp}}</span>
+</div>
+{{/each}}
+</script>
+
+<!-- 식품일 경우 -->
+<script id="qnaFoodTmpl" type="text/x-handlebars-template">
+<h3 class="prd_sec_tit" id="_h3_qna">Q&amp;A</h3>
+<div class="qna_notice food_type">
+	<span class="ico_notice">주의</span><p>식품 상품은 상품 문의 이용이 불가합니다.<br>
+    1:1 문의를 이용해주세요.</p><button type="button" class="u_btn btn_oto"><span>1:1문의 바로가기</span></button>
+</div>
+</script>
+
+<!-- 페이지 정의  -->
+<script id="qnaPageTmpl" type="text/x-handlebars-template">
+{{#compare startPageNumber '!==' 1}}
+<a href="#" class="btn_pn_prev ten_type" onclick="return false;"><span class="ico_arr"></span>이전 10페이지</a>
+{{/compare}}
+
+{{#compare curPage '!==' 1}}
+<a href="#" class="btn_pn_prev" onclick="return false;"><span class="ico_arr"></span>이전 페이지</a>
+{{/compare}}
+
+{{#each pageItemList}}
+{{#compare ../curPage '==' _index}}
+<strong class="lk_pn on">{{_index}}</strong>
+{{else}}
+<a href="#" class="lk_pn" onclick="return false;">{{_index}}</a>
+{{/compare}}
+{{/each}}
+
+{{#compare totalPage '!==' curPage}}
+<a href="#" class="btn_pn_next" onclick="return false;"><span class="ico_arr"></span>다음 페이지</a>
+{{/compare}}
+
+{{#compare endPageNumber '!==' totalPage}}
+<a href="#" class="btn_pn_next ten_type" onclick="return false;"><span class="ico_arr"></span>다음 10페이지</a>
+{{/compare}}
+</script>
+          </div>
+          <!-- //Q&A -->
+        </div>
+      </div>
+      <!-- //하단 -->
+    </div>
+
+	<!-- 연관상품 전체보기 -->
+    <div class="ly_detail _LY_RECOMMEND" style="display:none;">
+      <span class="center_bx">&nbsp;</span>
+    	<div class="ly_detail_inner">
+    		<div class="ly_detail_head">
+    			<h1>연관상품 전체보기</h1>
+    		</div>
+
+	        <!-- [D] 해당 영역 스크롤을 위해 max-height값이 필요합니다. 브라우저 높이에서 144px을 뺀 값을 style에 넣어주세요 -->
+	        <div class="prd_other_wrap relative_prd" style="max-height:1000px;">
+	           <!-- _TOT_RECOMMEND -->
+			   <div id="_TOT_RECOMMEND"> -->
+			   </div> <!-- //_TOT_RECOMMEND -->
+	        </div>
+
+
+	    	<a href="#" class="btn_ly_close"><span class="ico_x">레이어 닫기</span></a>
+	    </div>
+    </div>
+	<!-- //연관상품 전체보기 -->
+
+	<!-- 멤버십 혜택 받기 -->
+	<script id="gradeBenefitLayer" type="text/x-handlebars-template">
+		<!-- [D] 등급별 클래스 추가 'type_vvip' 'type_vip', 'type_family', 'type_friends' -->
+		<div class="lay_wrap ly_membership type_{{customerGradeName}}">
+			<div class="ly_msgwrap">
+				<div class="ly_msghead">
+					<h1><strong class="user_grade"><span class="blind">등급</span>{{customerGradeKoreaName}}</strong>이달의 멤버십 혜택을 받았어요</h1>
+				</div>
+				<div class="ly_msgct">
+					<ul class="lst_benefit">
+						{{#compare customerGradeName '==' 'vvip'}}
+							<li>멤버십 전용할인 <strong>5% 월 40,000원</strong></li>
+							<li>멤버십 방송상품쿠폰 <strong>5% 중복할인</strong></li>
+							<li>무료배송쿠폰 <strong>2매</strong></li>
+							<li>CJ ONE 포인트 <strong>최대 0.3% 적립</strong></li>
+						{{else compare customerGradeName '==' 'vip'}}
+							<li>멤버십 전용할인 <strong>5% 월 20,000원</strong></li>
+							<li>멤버십 방송상품쿠폰 <strong>5% 중복할인</strong></li>
+							<li>무료배송쿠폰 <strong>2매</strong></li>
+							<li>CJ ONE 포인트 <strong>최대 0.3% 적립</strong></li>
+						{{else compare customerGradeName '==' 'family'}}
+							<li>멤버십 전용할인 <strong>5% 월 10,000원</strong></li>
+							<li>멤버십 방송상품쿠폰 <strong>5% 중복할인</strong></li>
+							<li>무료배송쿠폰 <strong>1매</strong></li>
+							<li>CJ ONE 포인트 <strong>최대 0.3% 적립</strong></li>
+						{{else compare customerGradeName '==' 'friends'}}
+							<li>멤버십 전용할인 <strong>5% 월 7,000원</strong></li>
+							<li>멤버십 방송상품쿠폰 <strong>2% 중복할인</strong></li>
+							<li>CJ ONE 포인트 <strong>최대 0.3% 적립</strong></li>
+						{{/compare}}
+					</ul>
+				</div>
+				<div class="ly_btn_area">
+					<div class="btn_in_wrap">
+						<div class="u_td"><button type="button" class="u_btn btn_ok"><span class="txt">확인</span></button></div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</script>
+	<!-- //멤버십 혜택 받기 -->
+
+	<!-- 리뷰 PICK 상세 레이어 영역 -->
+	<div id="_reviewPickDetailArea"></div>
+	<!-- //리뷰 PICK 상세 레이어 영역 -->
+
+	<!-- 방송알리미 레이어 영역 -->
+	
+
+
+
+
+<script id="alarmyContentsTmpl" type="text/x-handlebars-template">
+	<div class="lay_wrap ly_alaram_wrap" id="_alarmy_regist_layer">
+		<span class="center_bx"></span>
+		<div class="ly_msgwrap">
+	   		<div class="ly_msghead">
+				<h1>방송알림 신청</h1>
+			</div>
+	   		<div class="ly_apply_wrap">
+	     			<div class="apply_prd">
+	       			<div class="prd_img">
+						<!--2017.09.21. thumbor pattern 변경-->
+	         				<img src="{{getThumbUrl itemImage.imgUrl 100 100 '' true}}" alt="{{itemImage.altText}}">
+						<!--//2017.09.21-->
+	       			</div>
+	       			<div class="apply_prd_inner">
+	         				<strong class="prd_name">{{itemName}}</strong>
+	       			</div>
+	     			</div>
+	     			<div class="apply_cont">
+	       			<form action="#">
+	         				<fieldset>
+	           				<legend class="blind">방송알림 신청</legend>
+	           				<dl class="apply_info">
+	             					<dt>기간</dt>
+	             					<dd>
+					                <span class="u_rdbx">
+					            		<input type="radio" id="rdbx1" name="rdbx_period" value="15">
+					            		<label for="rdbx1">15일<span class="bin"></span></label>
+					            	</span>
+					                <span class="u_rdbx">
+					            		<input type="radio" id="rdbx2" name="rdbx_period" value="30" checked="checked">
+					            		<label for="rdbx2">30일<span class="bin"></span></label>
+					            	</span>
+	               					<span class="u_rdbx">
+	           							<input type="radio" id="rdbx3" name="rdbx_period" value="60">
+	           							<label for="rdbx3">60일<span class="bin"></span></label>
+	           						</span>
+	             					</dd>
+	             					<dt>횟수</dt>
+	             					<dd>
+	             						<span class="u_rdbx">
+	             							<input type="radio" id="rdbx4" name="rdbx_number" value="02">
+	             							<label for="rdbx4">1회<span class="bin"></span></label>
+					            	</span>
+					                <span class="u_rdbx">
+					            		<input type="radio" id="rdbx6" name="rdbx_number" value="01" checked="checked">
+					            		<label for="rdbx6">방송시마다<span class="bin"></span></label>
+					            	</span>
+					        	</dd>
+					        </dl>
+	           				<div class="opply_dn">
+	             				<div class="opply_ck">
+	               					<span class="ft_gray">광고성 수신동의</span>
+	               					<span class="u_chkbx">
+	           							<input type="checkbox" id="ckbx" class="_marketing_agreeYn">
+	           							<label for="ckbx" id="_phone_num"><span class="bin"></span></label>
+	           						</span>
+	           					</div>
+								<div class="opply_ck">
+                    				<span class="u_chkbx right_type">
+                						<input type="checkbox" id="night_marketing" class="_midNight_agreeYn">
+                						<label for="night_marketing">심야 마케팅 수신 동의 (21~08시)<span class="bin"></span></label>
+                					</span>
+                					<span class="night_txt">동의 하시면 심야/새벽 방송(21시 ~ 익일 오전 8시)시에도 방송 시작 30분 전에 알림을 받으실 수 있습니다.</span>
+                  				</div>
+								   <button type="button" class="u_btn btn_apply gaclass" data-reg-method="02" 
+								    spcid="DTAI____alarmpopup__alarmset__"
+									ga-category="일반상세_NONE_NONE" 
+									ga-action="{{gaAction}}" 
+									ga-label="NONE_알림신청/NONE_NONE_NONE_NONE_NONE" 
+									ga-clickCode="DTAI____alarmpopup__alarmset__" 
+									ga-actionType="클릭" 
+									ga-4depth="000"
+									ga-7depth="000"
+									ga-PGMCode="{{pgmGroup.pgmCd}}"
+									ga-PGMName="{{pgmGroup.pgmNm}}" 
+									ga-PGMVariant="{{pgmGroup.pgmTy}}" 
+									ga-9depth="NONE" 
+									ga-productCode="NONE"><span spcid="DTAI____alarmpopup__alarmset__"
+								  								class="gaclass"
+																ga-category="일반상세_NONE_NONE" 
+																ga-action="{{gaAction}}" 
+																ga-label="NONE_알림신청/NONE_NONE_NONE_NONE_NONE" 
+																ga-clickCode="DTAI____alarmpopup__alarmset__" 
+																ga-actionType="클릭" 
+																ga-4depth="000"
+																ga-7depth="000"
+																ga-PGMCode="{{pgmGroup.pgmCd}}"
+																ga-PGMName="{{pgmGroup.pgmNm}}" 
+																ga-PGMVariant="{{pgmGroup.pgmTy}}" 
+																ga-9depth="NONE" 
+																ga-productCode="NONE">방송알림 신청</span></button>
+	           				</div>
+	           			</fieldset>
+	           		</form>
+			        <ul class="notice_lst">
+        				<li class="txt_blue"><span class="ico_dot"></span>방송알림 신청 후 구매 시 5,000원 쿠폰 증정 (매월 15일 지급)</li>
+        				<li><span class="ico_dot"></span>방송알림은 방송 시작 30분 전에 발송 되며, 심야/새벽 방송(21시 ~ 익일 오전 8시)은 21시 전에 미리 발송됩니다. 단, 심야 마케팅 수신 동의 시, 방송 시작 30분 전에 발송 됩니다.</li>
+        				<li><span class="ico_dot"></span>방송알림 수신 횟수 1회 신청 시, 카카오톡 알림 메시지로 발송 됩니다. (카카오톡 수신 불가 시, 문자로 발송 됩니다.)</li><!-- 2017-08-04 문구추가 -->
+        				<li><span class="ico_dot"></span>알림 방송은 당사의 방송 편성에 따라 변경 될 수 있으며, 연관 상품 방송 시 발송 될 수 있습니다.</li>
+        				<li><span class="ico_dot"></span> 수신 동의를 하시면, 방송알림을 받으실 수 있습니다. 수정 시, 회원정보의 SMS 수신동의 여부 및 심야 마케팅 수신 동의 여부도 동일하게 변경됩니다.</li>
+        			</ul>
+				</div>
+			</div>
+			<a href="#" class="btn_lyclr gaclass" 
+				spcid="DTAI____alarmpopup__close__"
+				ga-category="일반상세_NONE_NONE" 
+				ga-action="NONE_alarmpopup_방송알림신청" 
+				ga-label="NONE_닫기/NONE_NONE_NONE_NONE_NONE" 
+				ga-clickCode="DTAI____alarmpopup__close__" 
+				ga-actionType="클릭" 
+				ga-4depth="000"
+				ga-7depth="000"
+				ga-PGMCode="{{pgmGroup.pgmCd}}"
+				ga-PGMName="{{pgmGroup.pgmNm}}" 
+				ga-PGMVariant="{{pgmGroup.pgmTy}}" 
+				ga-9depth="NONE" 
+				ga-productCode="NONE">레이어 닫기</a>
+		</div>
+	</div>
+</script>
+<script id="alarmyDoneTmpl" type="text/x-handlebars-template">
+	<div class="lay_wrap" id="_alarmy_complete_layer" style="display: block;">
+		<div class="ly_msgwrap">
+			<div class="ly_msgct">
+				<h1>방송알림이 신청 되었습니다.</h1>
+          		<p>방송 시작 전에 미리 알림을 드리겠습니다.<br>감사합니다.</p>
+			</div>
+			<div class="ly_btn_area">
+				<div class="btn_in_wrap">
+					<div class="u_td">
+						<button type="button" class="u_btn" id="_btn_alimList" data-alim-result="success">
+							<span class="txt">
+								<a href="#" onclick="return false;">나의 방송알림 보기</a>
+							</span>
+						</button>
+					</div>
+					<div class="u_td"><button type="button" class="u_btn btn_chk ly-close gaclass" 
+										spcid="DTAI____alarmsetalert__confirm__"
+										ga-category="일반상세_NONE_NONE" 
+										ga-action="NONE_alarmsetalert_방송알림신청" 
+										ga-label="NONE_확인/NONE_NONE_NONE_NONE_NONE" 
+										ga-clickCode="DTAI____alarmsetalert__confirm__" 
+										ga-actionType="클릭" 
+										ga-4depth="000"
+										ga-7depth="000"
+										ga-PGMCode="{{pgmGroup.pgmCd}}"
+										ga-PGMName="{{pgmGroup.pgmNm}}" 
+										ga-PGMVariant="{{pgmGroup.pgmTy}}" 
+										ga-9depth="NONE" 
+										ga-productCode="NONE"><span class="txt gaclass" spcid="DTAI____alarmsetalert__confirm__"
+																ga-category="일반상세_NONE_NONE" 
+																ga-action="NONE_alarmsetalert_방송알림신청" 
+																ga-label="NONE_확인/NONE_NONE_NONE_NONE_NONE" 
+																ga-clickCode="DTAI____alarmsetalert__confirm__" 
+																ga-actionType="클릭" 
+																ga-4depth="000"
+																ga-7depth="000"
+																ga-PGMCode="{{pgmGroup.pgmCd}}"
+																ga-PGMName="{{pgmGroup.pgmNm}}" 
+																ga-PGMVariant="{{pgmGroup.pgmTy}}" 
+																ga-9depth="NONE" 
+																ga-productCode="NONE">확인</span></button></div>
+				</div>
+			</div>
+		</div>
+	</div>
+</script>
+<script id="alarmyAlreadyDoneTmpl" type="text/x-handlebars-template">
+	<div class="lay_wrap" id="_alarmy_already_complete_layer" style="display: block;">
+		<div class="ly_msgwrap">
+			<div class="ly_msgct">
+				<h1>이미 방송알림이 <br>신청된 상품입니다.</h1>
+			</div>
+			<div class="ly_btn_area">
+				<div class="btn_in_wrap">
+					<div class="u_td">
+						<button type="button" class="u_btn" id="_btn_alimList" data-alim-result="fail">
+							<span class="txt">
+								<a href="#" onclick="return false;">나의 방송알림 보기</a>
+							</span>
+						</button>
+					</div>
+					<div class="u_td"><button type="button" class="u_btn btn_chk ly-close gaclass" 
+										spcid="DTAI____alarmfailalert__confirm__"
+										ga-category="일반상세_NONE_NONE" 
+										ga-action="NONE_alarmfailalert_방송알림신청실패" 
+										ga-label="NONE_확인/NONE_NONE_NONE_NONE_NONE" 
+										ga-clickCode="DTAI____alarmfailalert__confirm__" 
+										ga-actionType="클릭" 
+										ga-4depth="000"
+										ga-7depth="000"
+										ga-PGMCode="{{pgmGroup.pgmCd}}"
+										ga-PGMName="{{pgmGroup.pgmNm}}" 
+										ga-PGMVariant="{{pgmGroup.pgmTy}}" 
+										ga-9depth="NONE" 
+										ga-productCode="NONE"><span class="txt gaclass" 
+																spcid="DTAI____alarmfailalert__confirm__"
+																ga-category="일반상세_NONE_NONE" 
+																ga-action="NONE_alarmfailalert_방송알림신청실패" 
+																ga-label="NONE_확인/NONE_NONE_NONE_NONE_NONE" 
+																ga-clickCode="DTAI____alarmfailalert__confirm__" 
+																ga-actionType="클릭" 
+																ga-4depth="000"
+																ga-7depth="000"
+																ga-PGMCode="{{pgmGroup.pgmCd}}"
+																ga-PGMName="{{pgmGroup.pgmNm}}" 
+																ga-PGMVariant="{{pgmGroup.pgmTy}}" 
+																ga-9depth="NONE" 
+																ga-productCode="NONE">확인</span></button></div>
+				</div>
+			</div>
+		</div>
+	</div>
+</script>
+	<!-- //방송알리미 레이어 영역 -->
+
+	<!-- 제휴쿠폰 & 앱 다운로드 -->
+	<script id="promotionLayer" type="text/x-handlebars-template">
+	{{#if this.isCoupon}}
+		{{#if this.couponImgUseYn}}
+		{{#if this.couponDtlShowYn}}
+		<div class="lay_wrap" id="promotion_layer">
+			<div class="ly_msgwrap">
+				<h1 class="blind">쿠폰 다운로드 안내</h1>
+				<div class="ly_img_wrap">
+				{{#if this.mktBnrShowYn}}
+					<span class="marketing_banner">
+						{{#if this.mktBnrLinkYn}}
+							<a href="{{this.mktBnrLinkUrl}}"><img src="{{this.mktBnrImgUrl}}" 
+								spcid="DTAI____puimg__banner__"
+								class="gaclass" 
+								ga-category="일반상세_NONE_NONE" 
+								ga-action="NONE_puimg_제휴팝업" 
+								ga-label="NONE_띠배너/NONE_NONE_NONE_NONE_NONE" 
+								ga-clickCode="DTAI____puimg__banner__" 
+								ga-actionType="페이지이동" 
+								ga-4depth="000" 
+								ga-7depth="000" 
+								ga-PGMCode="NONE" 
+								ga-PGMName="NONE" 
+								ga-PGMVariant="NONE" 
+								ga-9depth="NONE" 
+								ga-productCode="NONE"></a>
+						{{else}}
+							<a><img src="{{this.mktBnrImgUrl}}"></a>
+						{{/if}}
+					</span>
+				{{/if}}
+					<span class="coupon_down">
+						<img src="{{this.imgUrl}}" onerror="this.src='{{getThumbUrl defaultPcUrl 400 0}}'" alt="{{this.title}}">
+					</span>
+					<a href="#" class="u_btn btn_download gaclass" id="_coupon_download" 
+						spcid="DTAI____puimg__cupon__"
+						ga-category="일반상세_NONE_NONE" 
+						ga-action="NONE_puimg_제휴팝업" 
+						ga-label="NONE_쿠폰다운로드/NONE_NONE_NONE_NONE_NONE" 
+						ga-clickCode="DTAI____puimg__cupon__" 
+						ga-actionType="클릭" 
+						ga-4depth="000" 
+						ga-7depth="000" 
+						ga-PGMCode="NONE" 
+						ga-PGMName="NONE" 
+						ga-PGMVariant="NONE" 
+						ga-9depth="NONE" 
+						ga-productCode="NONE">쿠폰 다운로드</a>
+					<div class="ly_btn_wrap">
+						<span class="u_chkbx">
+							<input type="checkbox" id="ckbx1"/>
+							<label for="ckbx1"><a href="#레이어 닫기" class="ly-close gaclass" id="_without-reopen" 
+								spcid="DTAI____puimg__tdclose__"
+								ga-category="일반상세_NONE_NONE" 
+								ga-action="NONE_puimg_제휴팝업" 
+								ga-label="NONE_오늘하루보지않기/NONE_NONE_NONE_NONE_NONE" 
+								ga-clickCode="DTAI____puimg__tdclose__" 
+								ga-actionType="클릭" 
+								ga-4depth="000" 
+								ga-7depth="000" 
+								ga-PGMCode="NONE" 
+								ga-PGMName="NONE" 
+								ga-PGMVariant="NONE" 
+								ga-9depth="NONE" 
+								ga-productCode="NONE">오늘 하루 보지 않기</a></label>
+						</span>
+						<a href="#" class="u_btn btn_close_ly ly-close gaclass" 
+							spcid="DTAI____puimg__close__"
+							ga-category="일반상세_NONE_NONE" 
+							ga-action="NONE_puimg_제휴팝업" 
+							ga-label="NONE_닫기/NONE_NONE_NONE_NONE_NONE" 
+							ga-clickCode="DTAI____puimg__close__" 
+							ga-actionType="클릭" 
+							ga-4depth="000" 
+							ga-7depth="000" 
+							ga-PGMCode="NONE" 
+							ga-PGMName="NONE" 
+							ga-PGMVariant="NONE" 
+							ga-9depth="NONE" 
+							ga-productCode="NONE">닫기</a>
+					</div>
+				</div>
+			</div>
+		</div>
+		{{/if}}
+		{{/if}}
+	{{else}}
+		<div class="lay_wrap" id="promotion_layer">
+			<div class="ly_msgwrap">
+				<h1 class="blind">앱 다운로드 안내</h1>
+				<div class="ly_img_wrap">
+					<img src="{{this.imgUrl}}" onerror="this.src='{{getThumbUrl defaultPcUrl 400 0}}'" alt="{{this.title}}">
+					<a href="{{this.linkUrl}}" class="u_btn btn_download">자세히 보기</a>
+					<div class="ly_btn_wrap">
+						<span class="u_chkbx">
+							<input type="checkbox" id="ckbx2">
+							<label for="ckbx2"><a href="#레이어 닫기" class="ly-close" id="_without-reopen">오늘 하루 보지 않기</a></label>
+						</span>
+						<a href="#" class="u_btn btn_close_ly ly-close">닫기</a>
+					</div>
+				</div>
+			</div>
+		</div>
+	{{/if}}
+	</script>
+	<!-- //제휴쿠폰 & 앱 다운로드 -->
+
+<!-- 장바구니 초과 레이어 -->
+<script id="overloadedCartTmpl" type="text/x-handlebars-template">
+<div class="lay_wrap" id="_overloaded_layer" >
+	<div class="ly_msgwrap">
+		<div class="ly_msgct">
+			<h1>장바구니 최대 수량 초과</h1>
+			<p>장바구니에 담을수 있는 최대 수량을 초과하였습니다.<br>장바구니로 이동하여 상품을 삭제해주세요.</p>
+		</div>
+		<div class="ly_btn_area">
+			<div class="btn_in_wrap">
+				<div class="u_td"><button type="button" class="u_btn btn_cancel"><span class="txt">쇼핑 계속하기</span></button></div>
+				<div class="u_td"><button type="button" class="u_btn btn_chk" id="_go_to_cartlist"><span class="txt">장바구니로 이동</span></button></div>
+			</div>
+		</div>
+		<a href="#" class="btn_lyclr">레이어 닫기</a>
+	</div>
+</div>
+</script>
+<!-- //장바구니 초과 레이어 -->
+
+<!-- 쿡킷상품 레이어 -->
+<script id="cookitItemLayerTmpl" type="text/x-handlebars-template">
+<div class="lay_wrap" id="cookitLayer" style="display: block;">
+	<div class="ly_msgwrap">
+		<div class="ly_msgct">
+			<p>쿡킷 상품끼리만 주문 가능합니다.<br>상품을 다시 선택해주세요.</p>
+		</div>
+		<div class="ly_btn_area">
+			<div class="btn_in_wrap">
+				<div class="u_td"><button type="button" class="u_btn btn_chk"><span class="txt">확인</span></button></div>
+			</div>
+		</div>
+	</div>
+</div>
+</script>
+
+<!-- 더반찬상품 레이어 -->
+<script id="theBanchanItemLayerTmpl" type="text/x-handlebars-template">
+<div class="lay_wrap" id="theBanchanLayer" style="display: block;">
+	<div class="ly_msgwrap">
+		<div class="ly_msgct">
+			<p>더반찬 상품에 선택 가능한 배송일이 없습니다.</p>
+		</div>
+		<div class="ly_btn_area">
+			<div class="btn_in_wrap">
+				<div class="u_td"><button type="button" class="u_btn btn_chk"><span class="txt">확인</span></button></div>
+			</div>
+		</div>
+	</div>
+</div>
+</script>
+
+<script id="incomeDedLayerTmpl" type="text/x-handlebars-template">
+<div class="lay_wrap" id="incomeDedLayer" style="display: block;">
+	<div class="ly_msgwrap">
+		<div class="ly_msgct">
+			<p>도서공연비 소득공제 상품과<br>일반 상품을 한 번에 결제하실 경우<br>도서공연비 소득공제를<br>받으실 수 없습니다.<br><br>결제하시겠습니까?</p>
+		</div>
+		<div class="ly_btn_area">
+			<div class="btn_in_wrap">
+				<div class="u_td"><button type="button" class="u_btn btn_cancel"><span class="txt">취소</span></button></div>
+				<div class="u_td"><button type="button" class="u_btn btn_chk"><span class="txt">확인</span></button></div>
+			</div>
+		</div>
+		<a href="#" class="btn_lyclr" id="incomeDedClose">레이어 닫기</a>
+	</div>
+</div>
+</script>
+
+<script id="cosmaxSurveyLayerTmpl" type="text/x-handlebars-template">
+{{ cosmaxSurveyView}}
+</script>
+
+<script id="waitingPCTmpl" type="text/x-handlebars-template">
+<div class="traffic_wrap _waitingPCLayer">
+	<div class="inner">
+		<div class="thumb"><img src="{{imgUrl}}" alt=""></div>
+			{{#compare txtGb '==' 'W'}}
+			<h1 class="tit_traffic">잠시 후 판매가 시작됩니다</h1>
+			<p class="txt_schedule">{{month}}월 {{day}}일 {{time}}시 {{#compare mins '!=' '00'}}{{mins}}분 {{/compare}}판매 예정</p>
+			<!-- p class="txt_time">{{hour}}<span>:</span>{{min}}<span>:</span>{{sec}}</p -->
+			{{else compare txtGb '==' 'E'}}
+			<h1 class="tit_traffic">시스템 오류가 발생하였습니다</h1>
+			<p class="txt_schedule">재시도 바랍니다</p>
+			{{/compare}}
+			<div class="btn_area">
+				<a href="#" class="u_btn btn_prev" id="_waiting_pc_prev">이전 페이지</a>
+				<a href="#" class="u_btn u_btn_v2 btn_refresh" id="_waiting_pc_refresh">새로고침</a>
+			</div>
+		</div>
+	</div>
+</div>
+</script>
+
+<script id="soldouPCTmpl" type="text/x-handlebars-template">
+<div class="traffic_wrap">
+	<div class="inner">
+		<div class="thumb soldout"><img src="{{imgUrl}}" alt=""><span class="txt_soldout">SOLD OUT</span></div>
+			<h1 class="tit_traffic">오늘 준비한 물량이 <span>소진되었습니다</span></h1>
+			<p class="txt_info">다음에 더 좋은 상품으로 찾아 뵙겠습니다.</p>
+			<div class="btn_area">
+				<a href="#" class="u_btn u_btn_v2" id="_soldout_pc_home">홈으로 가기</a>
+			</div>
+		</div>
+	</div>
+</div>
+</script>
+
+  <!-- //content -->
+</div>
+
+		
+
+
+
+
+
+<!-- footer -->
+<div id="footer" role="contentinfo">
+</div>
+<!-- //footer -->
+		
+
+
+
+
+
+
+
+	</div>
+	<!-- flush tag lib -->
+	<script type="text/javascript" >
+//add config
+var __cjos_config__ = __cjos_config__ || {};
+(function (global, __cjos_config__){
+	
+	var overrideConfig = {};
+
+	
+	var customConfig = {
+		pageTitle: '',
+		staticImgPath: {
+			'ec-static-common': {
+				cjos: 'https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-static-common/dist/common-cjos-pc/others/7057809186d39aef20872b275eb9e38d/img',
+				cjmall: 'https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-static-common/dist/common-cjmall-pc/others/a54a79f05d1ce7a189ef16610350edd8/img'
+			},
+			'ec-markup-common': {
+				cjos: 'https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-markup-common/dist/common-cjos-pc/others/67b1699cc3645beb2faf7cf378bd5a32/img',
+				cjmall: 'https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-markup-common/dist/common-cjmall-pc/others/9a6accb135b2216f98a41544d53cb0df/img'
+			},
+			'ec-markup-page': {
+				cjmall: 'https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-markup-common/dist/page-cjmall-pc/others/b592a6294c4e9cff619e0ab7e7d39b41/img'
+			},
+			'ec-base': {
+				cjmall: 'https://image.cjonstyle.net/public/confirm/static/deploy/ec-base/dist/page-cjmall-pc/others/31c44d60910dcd356a920d77ec735263/img'
+			}
+		},
+		ecBaseCjmallImageUrl: 'https://image.cjonstyle.net/public/confirm/static/deploy/ec-base/dist/page-cjmall-pc/others/31c44d60910dcd356a920d77ec735263/img', // ec-base의 pc image URL
+		ecCloudImageUrl: '//cloud-image.cjmall.net',
+		'RTOKEN':'RC(1.0$$1776416033605$$mB32ja7oRsMCeIt6JQ24ZALoPb__RCsg-Pul2tY1iQc)', 
+		'':'' 
+	};
+	
+	_extend (__cjos_config__, overrideConfig);
+	_extend (__cjos_config__, customConfig);
+	
+	try {
+		__cjos_config__.controllerParams = JSON.parse('');
+	}  catch (e) {
+		__cjos_config__.controllerParams = {};
+	}
+
+	function _extend (t,s) {
+		for (var k in s) {
+			t [k] = s [k];
+		} 
+	}
+	
+	global.__cjos_config__ = __cjos_config__;
+}) (window, __cjos_config__);
+</script>
+<script type="text/javascript" >
+	var __cjos_config__ = __cjos_config__ || {};
+	__cjos_config__.mocode = '';										// mocode
+	__cjos_config__.itemCode = '2076751939';									// itemCode
+	__cjos_config__.channelCode = '30002002';								// channelCode
+	__cjos_config__.isMyzone = '';									// 마이존 진입 여부
+	__cjos_config__.checkSimple = '';								// 간편구매 여부
+	__cjos_config__.isEarlyDisp = '';								// 묶음코드미리보기 여부
+	__cjos_config__.marketCd = '';									// 마켓코드
+	__cjos_config__.isHarmGrdItem = '';                         // 유해상품여부  
+
+	__cjos_config__.kakaoAppID = 'd22f95b833d9c3b5a2fd72ad73153506';		// 카카오 SNS공유 APPID
+	__cjos_config__.naverMapKey = 'f8d64a4a13c9722fc3fa5c10348beb53';	// 네이버맵
+	__cjos_config__.faceAppID = '603112456389203';		// 페이스북 SNS공유 APPID
+	__cjos_config__.pinchZoomRef = '0';	// pinchZoom 사용여부를 설정
+	//__cjos_config__.itemImageUrl = 'itemimage.cjonstyle.net';		// item image domain
+	__cjos_config__.itemImageUrl = '';		// item image domain (온스타일용)
+	__cjos_config__.thumbor = 'thumb.cjonstyle.net';			// image thumbor domain
+	__cjos_config__.oddConceptsKey = 'CJMLa94ae6e98bd3a2e8e8206adef723ac37869efee4325fd43caeea82ec';	// 이미지추천서비스 apikey
+	__cjos_config__.oddConceptsBottomAreaUseYn = 'false';	// 이미지추천서비스(하단영역) 사용여부
+	__cjos_config__.oddConceptsTopAreaUseYn = 'false';	// 이미지추천서비스(상단영역) 사용여부
+	__cjos_config__.onoffRecommend = 'true';	// 추천상품영역
+	__cjos_config__.amoreBannerTop = '';		// 아모레퍼시픽 상단배너
+	//__cjos_config__.amoreBannerBottom = 'cloud-image.cjmall.net/public/confirm/contents/design/static/item/amore_notice.jpg';	// 아모레퍼시픽 하단배너
+	__cjos_config__.amoreBannerBottom = '';	// 아모레퍼시픽 하단배너(온스타일용)
+	__cjos_config__.amoreBannerAlt = '아모레 퍼시픽 뷰티 포인트 적립상품 안내 - 결제완료 후 신청 시 뷰티포인트 1% 적립';		// 아모레퍼시픽 대체메시지
+	__cjos_config__.theBanchanVenCd = '573992';		// 동원 더반찬 협력사 코드
+	__cjos_config__.cosmaxVenCd = '';		// 코스맥스 협력사 코드
+	__cjos_config__.mlcApi = 'https://mlc-api.cjoshopping.com';		        // 전시 MLC API 호출 URL
+	__cjos_config__.netfunnelItem = '2033768389|2033766955|2033765678|2033764982|2033768592';        // 넷퍼넬서비스 사용여부
+	__cjos_config__.netfunnelUseYn = 'true';        // 넷퍼넬서비스 사용여부
+
+
+	// start - 구매하기시 사용
+	__cjos_config__.mallCode = '001';
+	__cjos_config__.orderDv = '01';
+	__cjos_config__.vFlag = '';
+
+	__cjos_config__.isFullDetail = '';	// 상세설명 원본보기 고시정보포함 여부 ( true인 경우 포함 )
+	__cjos_config__.unitItemCnt = ''; 	// 유닛아이템 갯수
+	__cjos_config__.isNeededInterface = '';	// 앱 인터페이스 호출여부
+	__cjos_config__.topImgIdx = '';		// 상단 이미지 모아보기 시 초기 index
+	__cjos_config__.isItemMainPage = '';		// 앱 인터페이스-홈탭구분여부값
+	__cjos_config__.prefixClickCode = '';		// 앱 인터페이스-클릭코드 프리픽스 (도메인코드_템플릿코드_seq_seq_)
+	__cjos_config__.hideVodButtonItemCodes = '';        // 생방송 vod 버튼노출여부
+    __cjos_config__.oshoppingplusItemType = '';     // 오쇼핑플러스 vod 상품별 송출채널 설정 (e.g. 상품코드|CH2&상품코드|CH3 ...)
+    __cjos_config__.isNewLiveTalk = 'true';        	// 신규 라이브톡 url 여부
+	__cjos_config__.itemWaiting = '2033768389_20240610120000|2033766955_20240610120000|2033765678_20240610120000|2033764982_20240610120000|2033768592_20240610120000';					// 판매 개시 대기 상품 리스트 ex) 상품코드_오픈시간(YYYYMMDDHH24MISS)|상품코드_오픈시간|...
+	__cjos_config__.waitingYn = '';					// 판매 개시 대기 상품 리스트 ex) 상품코드_오픈시간(YYYYMMDDHH24MISS)|상품코드_오픈시간|...
+
+</script>
+<script type="text/javascript" src="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-static-common/dist/common-cjos-pc/js/b59f4e7906bc3161ef2901095a987170/common.cjos.pc.lib.min.js" data-config-env="prd" data-config-version="innerJarVersion" ></script>
+<script type="text/javascript" src="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-static-common/dist/common-cjos-pc/js/a669c1410130e43e5c0b06e05b6cd910/common.cjos.pc.util-ui.min.js" data-config-env="prd" data-config-version="innerJarVersion" ></script>
+<script type="text/javascript" src="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-static-common/dist/common-cjmall-pc/js/0bb47551164ef065619c7acfc407fc13/common.cjmall.pc.lib.min.js" data-config-env="prd" data-config-version="innerJarVersion" ></script>
+<script type="text/javascript" src="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-static-common/dist/common-cjmall-pc/js/8652b63f22110c0b34d5adf32ba7aecc/common.cjmall.pc.util-ui.min.js" data-config-env="prd" data-config-version="innerJarVersion" ></script>
+<script type="text/javascript" src="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-static-component/dist/component-cjmall-pc/itemoption/c9d630625b2a33141e6492f5a467155f/js/component.cjmall.pc.itemoption.min.js" data-config-env="prd" data-config-version="innerJarVersion" ></script>
+<script type="text/javascript" src="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-static-component/dist/component-cjmall-pc/video/b734fa8c2c97f4e9e45c0000f42416b5/js/component.cjmall.pc.video.min.js" data-config-env="prd" data-config-version="innerJarVersion" ></script>
+<script type="text/javascript" src="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-static-component/dist/component-cjmall-pc/itemBenefit/3763eba858fbcf147a7de35c3dd0e3cb/js/component.cjmall.pc.itemBenefit.min.js" data-config-env="prd" data-config-version="innerJarVersion" ></script>
+<script type="text/javascript" src="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-static-component/dist/component-cjmall-pc/itemDownloadCoupon/7f1e0e3499362c03b75ac3b6e335acf3/js/component.cjmall.pc.itemDownloadCoupon.min.js" data-config-env="prd" data-config-version="innerJarVersion" ></script>
+<script type="text/javascript" src="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-static-component/dist/component-cjmall-pc/itemReview/59274923edea0c055876732f62c7dcbf/js/component.cjmall.pc.itemReview.min.js" data-config-env="prd" data-config-version="innerJarVersion" ></script>
+<script type="text/javascript" src="https://image.cjonstyle.net/public/confirm/static/deploy/webjars/ec-static-component/dist/component-cjmall-pc/cosmaxSurvey/15719cbb29d83cf765ae722ee285f443/js/component.cjmall.pc.cosmaxSurvey.min.js" data-config-env="prd" data-config-version="innerJarVersion" ></script>
+<script type="text/javascript" src="https://image.cjonstyle.net/public/confirm/static/deploy/ec-base/dist/page-cjmall-pc/js/e999d0d18db67b4ccca43c040348bea2/page.cjmall.pc.item.min.js" data-config-env="prd" ></script>
+<script type="text/javascript" src="https://image.cjonstyle.net/public/confirm/static/deploy/ec-base/dist/page-cjmall-pc/handlebars/4b0f993a82e1107744d5be317370a3f6/page.cjmall.pc.item.handlebars.min.js" data-config-env="prd" ></script>
+<script type="text/javascript" >
+require ([
+		'common/cjos/util/configUtil'
+	], function (
+			configUtil
+		) {
+		
+		function initView() {
+			var protocol = location.protocol;
+			var infolwInfoCookieStr = Cookies.get('INFLOW_INFO') || '';
+			
+			if ( infolwInfoCookieStr === '' ) {
+				return;
+			}
+			var partnerCd = infolwInfoCookieStr.split('|,^')[1];
+			var iframeHeight = '0px';
+			
+			// https 지원되지 않는 외부 제휴 헤더 ssl 페이지에서 노출되지 않도록 처리
+			if ( ( partnerCd == '2541' || partnerCd == '2430' || partnerCd == '0934' ) && protocol === 'https:' ) {
+				return;
+			}
+			
+			try {
+				switch ( partnerCd ) {
+					case '2034':
+						// 01. 신한카드
+						iframeHeight = '110px';
+						break;
+					case '1993':
+					case '2045':
+					case '2677':
+						// 02. 현대카드
+						iframeHeight = '80px';
+						break;
+					case '1989':
+					case '2044':
+						// 03. 삼성카드
+						iframeHeight = '115px';
+						break;
+					case '2541':
+						// 04. NH카드
+						iframeHeight = '95px';
+						break;
+					case '2429':
+					case '3266':
+						// 05. KB국민카드
+						iframeHeight = '110px';
+						break;
+					case '2430':
+						// 06. 하나 SK카드
+						iframeHeight = '148px';
+						break;
+					case '0934':
+						// 07. 드림엑스
+						iframeHeight = '84px';
+						break;
+					case '2056':
+						// 08. 오케이캐쉬백몰
+						iframeHeight = '92px';
+						break;
+					case '2038':
+					case '2046':
+						// 09. 아시아나
+						iframeHeight = '55px';
+						break;
+					default:
+						break;
+				}
+			}  catch ( e ) {
+				console.log ( e );
+			}
+			
+			if (iframeHeight === '0px') {
+				return;
+			}
+			
+			var iframe = window.document.createElement ('iframe');
+			iframe.width = '100%';
+			iframe.height=iframeHeight;
+			iframe.id = 'affiliateHeaderIframe';
+			iframe.src = configUtil.get('ecBaseUrlNoProtocol') + '/p/advertise/inflow/affiliate/iframe';
+			iframe.style = 'display:block; frameBorder="0"';
+			iframe.scrolling = 'no';
+			
+			$("#affiliateHeader").append (iframe);
+		}
+		
+		initView ();
+	});
+</script>
+<script type="text/javascript" >
+	// GA360 Key prepare
+	GtmLib.prepare(["eigene_item", "dimension57", "dimension58", "dimension59", "dimension60", "dimension61", "dimension62", "dimension66", "dimension67", "dimension68", "dimension70", "dimension71", "dimension72", "dimension73", "dimension74", "dimension77", "dimension78", "dimension79", "dimension80", "dimension81", "dimension123", "dimension124", "dimension128"]);
+	require ([
+		'common/cjmall/ui/p/header/views/headerView',
+		'common/cjmall/ui/p/footer/views/footerView',
+		'common/cjos/advertise/util/advertiseUtil',
+		'common/cjos/advertise/models/advertiseConstantsModel',
+		'page/cjmall/item/p/views/itemMainView',
+		'common/cjos/advertise/util/advertiseUtil',
+		'common/cjos/advertise/models/advertiseConstantsModel',
+		'common/cjos/util/configUtil',
+		'common/cjos/util/globalVariables',
+		'page/cjmall/item/models/itemWaitingModel',
+		'page/cjmall/item/p/views/itemWaitingView',
+		'page/cjmall/item/p/views/soldoutLayerView',
+		'page/cjmall/item/models/itemKeyValueModel',
+		'common/cjos/util/dateUtil',
+		'common/cjos/logger/utils/loggerUtil'
+	], function (
+				HeaderView,
+				FooterView,
+				advertiseUtil,
+				AdvertiseConstants,
+				ItemMainView,
+				advertiseUtil,
+				AdvertiseConstants,
+				configUtil,
+				globalVariables,
+				ItemWaitingModel,
+				ItemWaitingView,
+				SoldoutLayerView,
+				ItemKeyValueModel,
+				dateUtil,
+				loggerUtil
+	) {
+
+		function initView () {
+			var s = this;
+		
+			function initViewRender() {
+				// 넷퍼넬 구동 시까지 setKey를 itemMain.jsp 로 옮김!
+				advertiseUtil.advertiseSetKey (AdvertiseConstants.PAGE_TYPE);
+				advertiseUtil.advertiseSetKey (AdvertiseConstants.ITEM_ARRAY);
+				
+				var actionId = null;
+				var netfunnelItems = model.get('eventItemCode'); // '2033768389|2033766955|2033765678|2033764982|2033768592';
+
+				// - 데이터 파싱 후 itemCode 포함여부 체크
+				var _netfunnelItems = (function() {
+					try {
+						var parsed = JSON.parse(netfunnelItems || '[]');
+						return Array.isArray(parsed) ? parsed : [];
+					} catch (e) {
+						cjosLogUtil.log('대용량 트래픽: 이벤트 상품 파싱 에러', netfunnelItems);
+						return [];
+					}
+				})();
+
+				// itemCode와 일치하는 오브젝트 추출
+				var _target = null
+				if (Array.isArray(_netfunnelItems) && _netfunnelItems.length > 0) {
+					for (var i = 0; i < _netfunnelItems.length; i++) {
+						var info = _netfunnelItems[i];
+						var isPlainObj = info && typeof info === 'object' && !Array.isArray(info);
+						if (isPlainObj && info.code === __cjos_config__.itemCode) {
+							_target = info;
+							break;
+						}
+					}
+				}
+
+				// 넷퍼넬 적용 여부 판단
+				if(_target !== null && _target !== undefined && typeof(_target) === 'object') {
+					// action_id 저장
+					actionId = _target.actionId || NetFunnel.TS_ACTION_ID;
+					renderView(actionId);
+				} else {
+					// common ui
+					var headerView = new HeaderView ({isActivatedTab: false});
+					var footerView = new FooterView ();
+					var view = new ItemMainView ();
+				}
+			};
+
+			// 프레임원 웨이팅 페이지 노출 여부
+			s.model = new ItemKeyValueModel();
+			s.model.update();
+			s.model.on('complete', initViewRender);
+		}
+
+		function renderView(actionId) {
+			var s = this;
+			
+			var waitingUseYn = model.get('waitingVal');
+			var netfunnelUseYn = model.get('netfunnelVal');
+			var netfunnelUseItem = __cjos_config__.itemCode;
+			
+			var itemWaitingModel = new ItemWaitingModel();
+			itemWaitingModel.fetch({
+				xhrFields: {
+					withCredentials: true
+				},
+				timeout : 10000,
+				error : function() {
+					// 새로고침 화면 추가 (api 에러나면 웨이팅 화면으로 노출)
+					cjosLogUtil.log(s);
+					var waitingView = new ItemWaitingView (null);
+				},
+				success: function(response) {
+					if (response && response.get('status') === 200 && response.get('result')) {
+						var result = response.get('result');
+
+						// 공통 UI 생성 함수
+						function renderCommonView() {
+							var headerView = new HeaderView({ isActivatedTab: false });
+							var footerView = new FooterView();
+							var view = new ItemMainView();
+						}
+
+						// 넷퍼넬 실행 공통 함수
+						function runNetFunnel(actionId) {
+							globalVariables.set({
+								netfunnelUseYn: netfunnelUseYn,
+								netfunnelUseItem: netfunnelUseItem,
+								netfunnelActionId: actionId
+							});
+
+							NetFunnel_Action({ action_id: actionId }, {
+								success: function(ev, ret) {
+									cjosLogUtil.log('netfunnel success!');
+									var netfunnel_key = ret.data.key;
+									renderCommonView();
+								},
+								continued: function(ev, ret) {
+									cjosLogUtil.log('netfunnel continued!');
+									//NetFunnel.PopupSetup("continue", ret, "mobileSkin");
+								},
+								stop: function(ev, ret) {
+									cjosLogUtil.log('netfunnel stop!');
+									if (history && history.length > 1 &&
+										document.referrer &&
+										document.referrer.indexOf('.cjonstyle.com') > -1 &&
+										!/\/c\/inflow\/I\d{4}/.test(document.referrer)) {
+										history.back();
+									} else {
+										location.href = configUtil.get('ecDisplayUrl') +
+											'/p/homeTab/main?hmtabMenuId=003147&rPIC=homeonstyle';
+									}
+								},
+								error: function(ev, ret) {
+									cjosLogUtil.log('netfunnel error!');
+									var waitingView = new ItemWaitingView(null);
+									loggerUtil.splunkClickLog('netfuunel Error - PC / errorCode : ' + ret.code);
+								},
+								block: function(ev, ret) {
+									cjosLogUtil.log('netfunnel block!');
+								}
+							});
+						}
+
+						// 진입판단
+						if (result && (!result.hasStock || (result.hasStock && result.resultCode === '00'))) {
+							// 재고없음 or (재고있음 + 미오픈(00))
+							if (waitingUseYn) {
+								var waitingView = new ItemWaitingView(result);
+							} else if (netfunnelUseYn) {
+								runNetFunnel(actionId);
+							} else {
+								renderCommonView();
+							}
+						} else {
+							// 그 외 (재고 있음 + 정상코드)
+							if (netfunnelUseYn) {
+								runNetFunnel(actionId);
+							} else {
+								renderCommonView();
+							}
+						}
+					}
+				}
+			});
+		}
+
+		initView ();
+	});
+</script>
+<script type="text/javascript" >
+	require ([
+		'common/cjos/util/terminate',
+		'common/cjos/logger/utils/loggerUtil'
+	], function (
+				 Terminate,
+				 loggerUtil
+				 ) {
+		// advertise core module call 
+		// logger core module call 
+		var terminate = new Terminate ();
+		
+	});
+</script>
+
+	
+
+
+
+
+
+<script type="text/javascript">
+	GtmLib.prepare();
+	require ([
+        'common/cjos/util/configUtil',
+        'common/cjos/util/loginInfo'
+	], function (configUtil, loginInfo) {
+			function setDefault() {
+				GtmLib.setData("dimension3", null);
+				GtmLib.setData("dimension6", null);
+				GtmLib.setData("dimension7", null); // 성별
+				GtmLib.setData("dimension8", null);
+				GtmLib.setData("dimension9", null);
+				GtmLib.setData("dimension10", "N");
+				GtmLib.setData("dimension11", null);
+				GtmLib.setData("dimension13", "N");
+				GtmLib.setData("dimension35", "N");
+			}
+
+			var waitingYn = configUtil.get ( 'waitingYn' ) == 'true' ? true : false ;
+			var itemCode = configUtil.get ( 'itemCode' );
+			var netfunnelItem = configUtil.get ( 'netfunnelItem' );
+
+			if(waitingYn && (itemCode === netfunnelItem)) {
+				setDefault();
+			} else {
+                loginInfo.get(function (info) {
+                    if(info.isDone) {
+                        GtmLib.setData("dimension3", info['accountCreatedAt']);
+                        GtmLib.setData("dimension6", info['custNo']);
+                        GtmLib.setData("dimension7", (!info['gender']) ? null : (info['gender'] == "MALE") ? "M" : "F"); // 성별
+                        GtmLib.setData("dimension8", info['age']);
+                        GtmLib.setData("dimension9", info['segCd']);
+                        GtmLib.setData("dimension10", (info['isAutoLoggedIn']) ? "Y" : "N");
+                        GtmLib.setData("dimension11", (info['isCJOneMember'] == null) ? null : (info['isCJOneMember']) ? "Y" : "N");
+                        GtmLib.setData("dimension13", (info['isEmployee']) ? "Y" : "N");
+                        GtmLib.setData("dimension35", (info['isLoggedIn']) ? "Y" : "N");
+                    } else {
+                        setDefault();
+                    }
+                });
+			}
+		});
+</script>
+</body>
+</html>
