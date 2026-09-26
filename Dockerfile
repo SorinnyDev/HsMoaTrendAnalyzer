@@ -16,8 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 
 COPY . .
 
-# Ensure script is executable
-RUN chmod +x entrypoint.sh
+# Ensure script is executable and has linux line endings (in case of Git pull on Windows)
+RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
 
 # Create directories for volumes
 RUN mkdir -p /app/logs /app/outputs
