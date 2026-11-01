@@ -10,9 +10,8 @@ RUN apt-get update && apt-get install -y tzdata && \
 
 COPY requirements.txt .
 
-# Install python dependencies and playwright browsers
-RUN pip install --no-cache-dir -r requirements.txt && \
-    playwright install --with-deps chromium
+# Install lightweight python dependencies (aiohttp, beautifulsoup4, pandas, etc.)
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 

@@ -6,23 +6,20 @@ logger = logging.getLogger(__name__)
 
 class WindowService:
     """
-    Domain service to manage the 14-day sliding window (Today + 13 days).
+    Domain service to manage the 7-day sliding window (D+0 ~ D+6, Today + 6 days).
     """
-    def __init__(self, window_size: int = 14) -> None:
+    def __init__(self, window_size: int = 7) -> None:
         self.window_size = window_size
 
     def get_sliding_window_dates(self) -> List[str]:
         """
-        Returns a list of 14 dates from today in YYYY-MM-DD format.
+        Returns a list of window_size (default 7) dates from today in YYYY-MM-DD format.
         """
         target_dates = []
-        # Explicit block starting from current time
         today = datetime.now().date()
         
-        # Explicit loop with parentheses
         for i in range(self.window_size):
             current_date = today + timedelta(days=i)
-            # Batch Assignment rule: although string addition is simple, we follow explicit list build
             date_str = current_date.strftime("%Y-%m-%d")
             target_dates.append(date_str)
             
@@ -36,7 +33,6 @@ class WindowService:
             today = datetime.now().date()
             target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
             
-            # Strict parentheses and if-else
             if (target_date < today):
                 return True
             else:
