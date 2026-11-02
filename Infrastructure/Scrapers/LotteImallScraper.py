@@ -14,13 +14,15 @@ logger = logging.getLogger(__name__)
 class LotteImallScraper(BaseChannelScraper):
     """
     롯데홈쇼핑 mobile public schedule scraper (D+0 ~ D+3).
-    Uses lightweight aiohttp requests without headless browsers.
+    Targets mobile TV schedule endpoints (viewTvSchedule.lotte and JSON/AJAX schedule APIs).
     """
 
     def __init__(self) -> None:
         super().__init__(channel_name="롯데홈쇼핑", max_days_ahead=3, timeout_seconds=15)
-        self.base_url = "https://m.lotteimall.com/main/viewMain.lotte"
-        self.fallback_url = "https://www.lotteimall.com/plots/lc/tv-schedule"
+        self.primary_api_url = "https://m.lotteimall.com/display/viewTvSchedule.lotte"
+        self.ajax_api_url = "https://m.lotteimall.com/display/selectTvScheduleListAjax.lotte"
+        self.pc_ajax_url = "https://www.lotteimall.com/display/selectTvScheduleListAjax.lotte"
+        self.pc_schedule_url = "https://www.lotteimall.com/display/viewTvSchedule.lotte"
 
     async def fetch_schedule(self, start_date: date, end_date: date) -> List[ScheduleItem]:
         """
@@ -39,19 +41,7 @@ class LotteImallScraper(BaseChannelScraper):
                 date_str_compact = current_date.strftime("%Y%m%d")
                 date_str_iso = current_date.strftime("%Y-%m-%d")
 
-                params = {}
-                params["bd_date"] = date_str_compact
-                params["searchDate"] = date_str_compact
-
-                extra_headers = {}
-                extra_headers["Referer"] = "https://m.lotteimall.com/"
-
-                try:
-                    raw_text = await self.fetch_text(session, self.fallback_url, params=params, extra_headers=extra_headers)
-                except Exception:
-                    raw_text = await self.fetch_text(session, self.base_url, params=params, extra_headers=extra_headers)
-
-                daily_items = self._parse_response(raw_text, date_str_iso)
+                daily_items = await self._fetch_single_date(session, date_str_compact, date_str_iso)
                 for item in daily_items:
                     collected_items.append(item)
 
@@ -60,10 +50,52 @@ class LotteImallScraper(BaseChannelScraper):
 
         return collected_items
 
+    async def _fetch_single_date(
+        self,
+        session: aiohttp.ClientSession,
+        date_str_compact: str,
+        date_str_iso: str
+    ) -> List[ScheduleItem]:
+        """
+        Attempts to fetch 롯데홈쇼핑 schedule via mobile viewTvSchedule.lotte and AJAX endpoints.
+        """
+        params = {}
+        params["bd_date"] = date_str_compact
+        params["searchDate"] = date_str_compact
+        params["broad_date"] = date_str_compact
+        params["chnl_gb"] = "01"
+
+        extra_headers = {}
+        extra_headers["Referer"] = "https://m.lotteimall.com/display/viewTvSchedule.lotte"
+        extra_headers["X-Requested-With"] = "XMLHttpRequest"
+
+        endpoints = []
+        endpoints.append(self.primary_api_url)
+        endpoints.append(self.ajax_api_url)
+        endpoints.append(self.pc_ajax_url)
+        endpoints.append(self.pc_schedule_url)
+
+        last_error: Exception = ScraperParseException("AllEndpointsFailed")
+
+        for endpoint_url in endpoints:
+            try:
+                raw_text = await self.fetch_text(
+                    session,
+                    endpoint_url,
+                    params=params,
+                    extra_headers=extra_headers
+                )
+                parsed_items = self._parse_response(raw_text, date_str_iso)
+                return parsed_items
+            except Exception as err:
+                last_error = err
+                continue
+
+        raise last_error
+
     def _parse_response(self, raw_text: str, date_str_iso: str) -> List[ScheduleItem]:
         """
-        Parses 롯데홈쇼핑 schedule response (JSON or HTML).
-        Raises ScraperParseException on failure.
+        Parses 롯데홈쇼핑 schedule response (JSON payload, embedded script JSON, or HTML fragment).
         """
         if (not raw_text or len(raw_text.strip()) == 0):
             raise ScraperParseException("EmptyResponse")
@@ -76,33 +108,47 @@ class LotteImallScraper(BaseChannelScraper):
             except Exception as e:
                 raise ScraperParseException(f"JSONParseError: {str(e)}") from e
 
+        # Try extracting JSON arrays/objects embedded inside <script> tags
+        script_json_matches = re.findall(
+            r"(?:scheduleList|tvScheduleList|broadList|goodsList| INITIAL_STATE|__NEXT_DATA__)\s*[=:]\s*(\[.*?\]|\{.*?\})\s*[;<\n]",
+            raw_text,
+            re.DOTALL
+        )
+        for match_str in script_json_matches:
+            try:
+                json_obj = json.loads(match_str)
+                return self._extract_from_json(json_obj, date_str_iso)
+            except Exception:
+                continue
+
         soup = BeautifulSoup(raw_text, "html.parser")
+        next_script = soup.select_one("script#__NEXT_DATA__")
+        if (next_script is not None and next_script.string):
+            try:
+                json_data = json.loads(next_script.string)
+                return self._extract_from_json(json_data, date_str_iso)
+            except Exception as e:
+                raise ScraperParseException(f"NextDataParseError: {str(e)}") from e
+
         product_elements = soup.select(
-            "li.broad-item, div.broad-item, li.schedule-item, div.prd-item, ul.list_tv > li"
+            "li.broad-item, div.broad-item, li.schedule-item, div.prd-item, ul.list_tv > li, "
+            "div.tv_schedule_list li, div.schedule_list li, div.box_prd, li[data-goods-no]"
         )
 
         if (len(product_elements) == 0):
-            script_node = soup.select_one("script#__NEXT_DATA__")
-            if (script_node is not None and script_node.string):
-                try:
-                    json_data = json.loads(script_node.string)
-                    return self._extract_from_json(json_data, date_str_iso)
-                except Exception as e:
-                    raise ScraperParseException(f"NextDataParseError: {str(e)}") from e
-
             raise ScraperParseException("SelectorNotFound")
 
         items: List[ScheduleItem] = []
         current_time_str = "00:00"
 
         for elem in product_elements:
-            time_node = elem.select_one(".time, .broad_time, .txt_time, span.time")
+            time_node = elem.select_one(".time, .broad_time, .txt_time, span.time, em.time, strong.time")
             if (time_node is not None):
                 time_match = re.search(r"(\d{1,2}:\d{2})", time_node.get_text(strip=True))
                 if (time_match is not None):
                     current_time_str = time_match.group(1)
 
-            name_node = elem.select_one(".prd_name, .tit_prd, .name, .title, a.link")
+            name_node = elem.select_one(".prd_name, .tit_prd, .name, .title, .txt_tit, p.tit, a.link")
             if (name_node is None):
                 continue
 
@@ -119,7 +165,7 @@ class LotteImallScraper(BaseChannelScraper):
                 continue
 
             price_str = ""
-            price_node = elem.select_one(".price, .txt_price, .num")
+            price_node = elem.select_one(".price, .txt_price, .num, strong.price")
             if (price_node is not None):
                 digits = re.sub(r"[^\d]", "", price_node.get_text(strip=True))
                 if (digits):
@@ -156,7 +202,14 @@ class LotteImallScraper(BaseChannelScraper):
 
         def _walk(node: Any) -> None:
             if (isinstance(node, dict)):
-                if ("goods_nm" in node or "goodsNm" in node or "prdNm" in node or "itemName" in node):
+                if (
+                    "goods_nm" in node
+                    or "goodsNm" in node
+                    or "prdNm" in node
+                    or "itemName" in node
+                    or "pgm_nm" in node
+                    or "pgmNm" in node
+                ):
                     candidates.append(node)
                 for val in node.values():
                     _walk(val)
@@ -174,26 +227,49 @@ class LotteImallScraper(BaseChannelScraper):
                 or item_dict.get("goodsNm")
                 or item_dict.get("prdNm")
                 or item_dict.get("itemName")
+                or item_dict.get("pgm_nm")
+                or item_dict.get("pgmNm")
                 or ""
             ).strip()
 
             if (not product_name):
                 continue
 
-            category_text = str(item_dict.get("cat_nm") or item_dict.get("catNm") or item_dict.get("category") or "")
+            category_text = str(
+                item_dict.get("cat_nm")
+                or item_dict.get("catNm")
+                or item_dict.get("disp_nm")
+                or item_dict.get("category")
+                or ""
+            )
             if (not self.is_health_food_item(product_name, category_text)):
                 continue
 
-            raw_time = str(item_dict.get("bd_bgn_dtm") or item_dict.get("startTime") or item_dict.get("broadTime") or "00:00")
+            raw_time = str(
+                item_dict.get("bd_bgn_dtm")
+                or item_dict.get("bdBgnDtm")
+                or item_dict.get("broad_str_dtm")
+                or item_dict.get("startTime")
+                or item_dict.get("broadTime")
+                or "00:00"
+            )
             time_match = re.search(r"(\d{1,2}:\d{2})", raw_time)
             if (time_match is not None):
                 time_str = time_match.group(1)
             elif (len(raw_time) >= 12 and raw_time.isdigit()):
                 time_str = f"{raw_time[8:10]}:{raw_time[10:12]}"
+            elif (len(raw_time) == 4 and raw_time.isdigit()):
+                time_str = f"{raw_time[0:2]}:{raw_time[2:4]}"
             else:
                 time_str = "00:00"
 
-            raw_price = str(item_dict.get("sale_price") or item_dict.get("salePrice") or item_dict.get("price") or "")
+            raw_price = str(
+                item_dict.get("sale_price")
+                or item_dict.get("salePrice")
+                or item_dict.get("final_price")
+                or item_dict.get("price")
+                or ""
+            )
             price_str = re.sub(r"[^\d]", "", raw_price)
 
             goods_no = str(item_dict.get("goods_no") or item_dict.get("goodsNo") or "")
@@ -213,4 +289,3 @@ class LotteImallScraper(BaseChannelScraper):
             results.append(schedule_item)
 
         return results
-

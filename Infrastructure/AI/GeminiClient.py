@@ -1,15 +1,16 @@
 import os
+import time
 import logging
 from google import genai
 from google.genai import types
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 logger = logging.getLogger(__name__)
 
 class GeminiClient:
     """
     Infrastructure layer for interacting with Gemini AI.
-    Handles product analysis and business report generation.
+    Handles product analysis and business report generation with retry and model fallback.
     """
     def __init__(self) -> None:
         api_key = os.getenv("GEMINI_API_KEY")
@@ -17,7 +18,12 @@ class GeminiClient:
             logger.error("GEMINI_API_KEY is not set in environment variables.")
         
         self.client = genai.Client(api_key=api_key)
-        self.model_name = 'gemini-flash-latest'
+        self.model_name = "gemini-flash-latest"
+        self.fallback_models: List[str] = [
+            "gemini-flash-latest",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash"
+        ]
 
     def analyze_product_name(self, product_name: str) -> Dict[str, str]:
         """
@@ -40,13 +46,13 @@ class GeminiClient:
                 model=self.model_name,
                 contents=prompt
             )
-            text = response.text.strip()
-            
-            if ("|" in text):
-                parts = text.split("|")
-                if (len(parts) >= 2):
-                    result["brand"] = parts[0].strip()
-                    result["ingredient"] = parts[1].strip()
+            if (response and response.text):
+                text = response.text.strip()
+                if ("|" in text):
+                    parts = text.split("|")
+                    if (len(parts) >= 2):
+                        result["brand"] = parts[0].strip()
+                        result["ingredient"] = parts[1].strip()
         except Exception as e:
             logger.error(f"Error in analysis: {str(e)}")
             
@@ -55,12 +61,17 @@ class GeminiClient:
     def generate_daily_report(self, stats_summary_text: str, previous_report_text: str = "") -> str:
         """
         Generates a concise, fact-driven business report without role-play boilerplate.
+        Includes defensive input validation and model fallback retries.
         """
-        context_section = ""
-        if (previous_report_text):
-            context_section = f"\n[이전 분석 맥락]:\n{previous_report_text}\n"
+        if (not stats_summary_text or len(stats_summary_text.strip()) == 0):
+            logger.warning("Empty stats_summary_text passed to generate_daily_report.")
+            return "현재 분석 가능한 건강기능식품 편성 요약 데이터가 없습니다."
 
-        # 텔레그램 가독성을 고려한 프롬프트 고도화
+        context_section = ""
+        if (previous_report_text and "리포트 생성에 실패하였습니다" not in previous_report_text):
+            trimmed_prev = previous_report_text[:3000]
+            context_section = f"\n[이전 분석 맥락]:\n{trimmed_prev}\n"
+
         prompt = f"""
         건강기능식품 시장 데이터 분석 리포트를 작성하십시오.
         {context_section}
@@ -88,16 +99,18 @@ class GeminiClient:
         
         final_report = "리포트 생성에 실패하였습니다."
         
-        try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt
-            )
-            if (response.text):
-                final_report = response.text.strip()
-        except Exception as e:
-            logger.error(f"Error generating AI report: {str(e)}")
+        for candidate_model in self.fallback_models:
+            try:
+                response = self.client.models.generate_content(
+                    model=candidate_model,
+                    contents=prompt
+                )
+                if (response and response.text and len(response.text.strip()) > 0):
+                    final_report = response.text.strip()
+                    return final_report
+            except Exception as e:
+                logger.error(f"Error generating AI report with model '{candidate_model}': {str(e)}")
+                time.sleep(1)
+                continue
             
         return final_report
-
-

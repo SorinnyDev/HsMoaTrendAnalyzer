@@ -2,12 +2,13 @@ import os
 import logging
 import pandas as pd
 from datetime import datetime, date
-from typing import List
+from typing import List, Dict, Any
 from Infrastructure.Scrapers.MultiChannelAggregator import MultiChannelAggregator, ChannelCrawlResult
 from Infrastructure.Persistence.ExcelRepository import ExcelRepository
 from Infrastructure.Persistence.SqliteRepository import SqliteRepository
 from Infrastructure.Persistence.SyncManager import SyncManager
 from Application.Service.TrendManager import TrendManager
+from Application.Service.WeightCalculator import WeightCalculator
 from Application.Service.NotificationService import NotificationService
 from Domain.HomeShopping.Service.WindowService import WindowService
 from Domain.Models.Schedule import ScheduleItem
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 class TrendAnalysisService:
     """
     Application service that coordinates multi-channel scraping, health tracking,
-    data persistence, and Gemini AI trend analysis.
+    data persistence, and Gemini AI trend analysis with defensive fallback handling.
     """
 
     def __init__(self) -> None:
@@ -25,6 +26,7 @@ class TrendAnalysisService:
         self.repository = ExcelRepository()
         self.db_repo = SqliteRepository()
         self.trend_manager = TrendManager()
+        self.weight_calculator = WeightCalculator()
         self.last_health_results: List[ChannelCrawlResult] = []
 
     def deduplicate_items(self, items: List[ScheduleItem]) -> List[ScheduleItem]:
@@ -57,6 +59,95 @@ class TrendAnalysisService:
 
         self.last_health_results = enriched_results
         return enriched_results
+
+    def _build_records_from_schedule_items(self, items: List[ScheduleItem]) -> List[Dict[str, Any]]:
+        """
+        Converts in-memory ScheduleItem objects directly into analysis dictionary records
+        so that report generation succeeds even if Excel I/O or some channels fail.
+        """
+        records: List[Dict[str, Any]] = []
+        for item in items:
+            weight_val = self.weight_calculator.get_weight(item.broadcast_time)
+            category_val = item.category
+            if (not category_val):
+                category_val = "건강식품"
+
+            row = {}
+            row["broadcast_date"] = str(item.broadcast_date)
+            row["broadcast_time"] = str(item.broadcast_time)
+            row["channel"] = str(item.channel)
+            row["product_name"] = str(item.product_name)
+            row["category"] = str(category_val)
+            row["price"] = str(item.price or "")
+            row["power_score"] = float(weight_val)
+            records.append(row)
+
+        return records
+
+    def _build_stats_summary_safely(self, active_records: List[Dict[str, Any]]) -> str:
+        """
+        Safely aggregates active schedule records into a summary string for Gemini.
+        Never raises KeyError or ValueError even on partial or malformed records.
+        """
+        if (not active_records or len(active_records) == 0):
+            return ""
+
+        try:
+            df_window = pd.DataFrame(active_records)
+            if (df_window.empty):
+                return ""
+
+            if ("product_name" not in df_window.columns):
+                return ""
+
+            if ("category" not in df_window.columns):
+                df_window["category"] = "건강식품"
+            else:
+                df_window["category"] = df_window["category"].fillna("건강식품")
+
+            if ("power_score" not in df_window.columns):
+                df_window["power_score"] = 1.0
+            else:
+                df_window["power_score"] = pd.to_numeric(df_window["power_score"], errors="coerce").fillna(1.0)
+
+            if ("broadcast_date" not in df_window.columns):
+                df_window["broadcast_date"] = datetime.now().strftime("%Y-%m-%d")
+
+            agg_spec = {}
+            agg_spec["power_score"] = "sum"
+            agg_spec["broadcast_date"] = "count"
+
+            grouped_df = df_window.groupby(["product_name", "category"], as_index=False).agg(agg_spec)
+            sorted_df = grouped_df.sort_values(by="power_score", ascending=False).head(30)
+            return sorted_df.to_string(index=False)
+
+        except Exception as agg_err:
+            logger.error(f"Error during DataFrame aggregation, falling back to plain text summary: {str(agg_err)}")
+            fallback_lines: List[str] = []
+            limit_count = min(len(active_records), 30)
+            for idx in range(limit_count):
+                rec = active_records[idx]
+                p_name = rec.get("product_name", "미분류")
+                c_name = rec.get("channel", "홈쇼핑")
+                p_score = rec.get("power_score", 1.0)
+                fallback_lines.append(f"- [{c_name}] {p_name} (Power Score: {p_score})")
+            return "\n".join(fallback_lines)
+
+    def _build_deterministic_fallback_report(self, active_records: List[Dict[str, Any]], stats_summary: str) -> str:
+        """
+        Generates a structured fallback report when Gemini API fails or returns an error string,
+        ensuring valid collected channel data (e.g., CJ온스타일 95 items) is still reported cleanly.
+        """
+        lines: List[str] = []
+        lines.append("📊 [주간 건강기능식품 편성 데이터 요약 리포트 (Fallback)]")
+        lines.append(f"• 분석 대상 편성 건수: 총 {len(active_records)}건")
+        lines.append("")
+        lines.append("[상위 Power Score 핵심 편성 상품 요약]")
+        if (stats_summary):
+            lines.append(stats_summary)
+        else:
+            lines.append("집계 가능한 상세 편성 내역이 없습니다.")
+        return "\n".join(lines)
 
     async def run_daily_collection(self, target_date_str: str = None) -> None:
         """
@@ -94,7 +185,7 @@ class TrendAnalysisService:
     async def run_sliding_window_sync(self) -> None:
         """
         Coordinates the 7-day sliding window (D+0 ~ D+6) parallel synchronization process across 5 channels.
-        Includes fault-tolerant scraping, health-check DB persistence, Excel upserting, and Telegram reporting.
+        Even if several channels fail, normal channels' items are guaranteed to generate a Gemini report.
         """
         window_service = WindowService(window_size=7)
         sync_manager = SyncManager()
@@ -113,68 +204,74 @@ class TrendAnalysisService:
             # 2. Update channel_health_history in crawling_history.db
             enriched_health_results = self._update_and_enrich_health_results(channel_results)
 
-            # 3. Record per-date crawling history and monthly Excel sheets
-            items_by_date = {}
-            for date_str in target_dates:
-                items_by_date[date_str] = []
+            # 3. Record per-date crawling history and monthly Excel sheets (isolated try-except)
+            try:
+                items_by_date = {}
+                for date_str in target_dates:
+                    items_by_date[date_str] = []
 
-            for item in all_collected_items:
-                if (item.broadcast_date in items_by_date):
-                    items_by_date[item.broadcast_date].append(item)
-                else:
-                    items_by_date[item.broadcast_date] = [item]
+                for item in all_collected_items:
+                    if (item.broadcast_date in items_by_date):
+                        items_by_date[item.broadcast_date].append(item)
+                    else:
+                        items_by_date[item.broadcast_date] = [item]
 
-            for date_str, date_items in items_by_date.items():
-                if (len(date_items) > 0):
-                    dt_obj = datetime.strptime(date_str, "%Y-%m-%d")
-                    month_str = dt_obj.strftime("%m월")
-                    sheet_name = dt_obj.strftime("%m-%d")
-                    dedup_date_items = self.deduplicate_items(date_items)
-                    self.repository.save_schedule(dedup_date_items, month_str, sheet_name)
-                    self.db_repo.mark_date_status(date_str, "SUCCESS", len(date_items))
-                else:
-                    self.db_repo.mark_date_status(date_str, "NO_DATA", 0)
+                for date_str, date_items in items_by_date.items():
+                    if (len(date_items) > 0):
+                        dt_obj = datetime.strptime(date_str, "%Y-%m-%d")
+                        month_str = dt_obj.strftime("%m월")
+                        sheet_name = dt_obj.strftime("%m-%d")
+                        dedup_date_items = self.deduplicate_items(date_items)
+                        self.repository.save_schedule(dedup_date_items, month_str, sheet_name)
+                        self.db_repo.mark_date_status(date_str, "SUCCESS", len(date_items))
+                    else:
+                        self.db_repo.mark_date_status(date_str, "NO_DATA", 0)
+            except Exception as excel_err:
+                logger.error(f"Non-fatal error saving daily Excel sheets: {str(excel_err)}")
 
             # 4. Synchronize and Upsert D+0 ~ D+6 Window Data to Excel
             sync_manager.synchronize_window_data(all_collected_items, window_days=7)
 
-            # 5. Generate Analysis Summary for Gemini & Send Telegram Report with Health Check
+            # 5. Retrieve active window items with in-memory fallback if Excel read returns empty
             active_items = sync_manager.get_current_window_items()
+            if (len(active_items) == 0 and len(all_collected_items) > 0):
+                logger.info("Using in-memory collected items as fallback for report generation.")
+                active_items = self._build_records_from_schedule_items(all_collected_items)
+
             output_dir = os.getenv("OUTPUT_DIR", "./outputs")
             last_report_path = os.path.join(output_dir, "last_ai_report.txt")
 
             if (len(active_items) > 0):
-                df_window = pd.DataFrame(active_items)
-
-                agg_spec = {}
-                agg_spec["power_score"] = "sum"
-                agg_spec["broadcast_date"] = "count"
-
-                stats_summary = df_window.groupby(["product_name", "category"]).agg(
-                    agg_spec
-                ).sort_values(by="power_score", ascending=False).head(30).to_string()
+                stats_summary = self._build_stats_summary_safely(active_items)
 
                 prev_report = ""
                 if (os.path.exists(last_report_path)):
                     try:
                         with open(last_report_path, "r", encoding="utf-8") as f:
-                            prev_report = f.read()
-                            logger.info("Previous analysis context loaded successfully.")
+                            loaded_text = f.read().strip()
+                            if ("리포트 생성에 실패하였습니다" not in loaded_text):
+                                prev_report = loaded_text
+                                logger.info("Previous analysis context loaded successfully.")
                     except Exception as load_err:
                         logger.error(f"Failed to load previous report: {str(load_err)}")
 
-                logger.info("Requesting 7-day strategic report from Gemini (with context)...")
+                logger.info(f"Requesting 7-day strategic report from Gemini for {len(active_items)} active items...")
                 report_body = self.trend_manager.gemini_client.generate_daily_report(stats_summary, prev_report)
+
+                if (not report_body or "리포트 생성에 실패하였습니다" in report_body):
+                    logger.warning("Gemini report returned failure message. Building deterministic fallback report.")
+                    report_body = self._build_deterministic_fallback_report(active_items, stats_summary)
             else:
-                logger.warning("No active items found in the window. Sending health status report.")
+                logger.warning("No active items found in the window across all channels.")
                 report_body = "현재 윈도우(D+0 ~ D+6) 내 수집된 건강기능식품 편성 데이터가 없습니다."
 
             full_report_text = notifier.build_full_message(report_body, enriched_health_results)
 
             try:
                 os.makedirs(output_dir, exist_ok=True)
-                with open(last_report_path, "w", encoding="utf-8") as f:
-                    f.write(full_report_text)
+                if ("리포트 생성에 실패하였습니다" not in report_body):
+                    with open(last_report_path, "w", encoding="utf-8") as f:
+                        f.write(full_report_text)
 
                 archive_dir = os.path.join(output_dir, "ai_reports")
                 os.makedirs(archive_dir, exist_ok=True)
@@ -207,10 +304,16 @@ class TrendAnalysisService:
 
         try:
             df = pd.read_excel(stats_file)
+            if (df.empty):
+                logger.warning("Statistics file is empty. Skipping standalone report.")
+                return
+
             recent_context = df.tail(50).to_string(index=False)
 
             logger.info("Generating Standalone AI Report...")
             report = self.trend_manager.gemini_client.generate_daily_report(recent_context)
+            if (not report or "리포트 생성에 실패하였습니다" in report):
+                report = f"📊 [누적 통계 요약 리포트 (Fallback)]\n{recent_context}"
 
             notifier.send_report(report, self.last_health_results)
 
