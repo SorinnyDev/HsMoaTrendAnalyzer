@@ -5,6 +5,7 @@ import json
 import re
 import logging
 import aiohttp
+from bs4 import BeautifulSoup
 from Domain.Models.Schedule import ScheduleItem
 from Infrastructure.Scrapers.BaseChannelScraper import BaseChannelScraper, ScraperParseException
 
@@ -13,19 +14,19 @@ logger = logging.getLogger(__name__)
 class NsMallScraper(BaseChannelScraper):
     """
     NS홈쇼핑 mobile public schedule scraper (D+0 ~ D+3).
-    Directly calls NS홈쇼핑 mobile internal JSON/REST schedule APIs without HTML DOM reliance.
+    Queries getTvScheduleList API with dual JSON and BeautifulSoup HTML fallback parsing.
     """
 
     def __init__(self) -> None:
         super().__init__(channel_name="NS홈쇼핑", max_days_ahead=3, timeout_seconds=15)
         self.rest_api_url = "https://m.nsmall.com/tv/schedule/getTvScheduleList"
-        self.nsapi_url = "https://api.nsmall.com/api/v1/display/schedule/tv"
-        self.ajax_legacy_url = "https://m.nsmall.com/NSAjaxTVSchedule"
         self.page_url_template = "https://m.nsmall.com/store/fixed/schedule/tv/{date_compact}"
+        self.ajax_legacy_url = "https://m.nsmall.com/NSAjaxTVSchedule"
+        self.mobile_schedule_url = "https://m.nsmall.com/tv/schedule"
 
     async def fetch_schedule(self, start_date: date, end_date: date) -> List[ScheduleItem]:
         """
-        Fetches NS홈쇼핑 schedule from start_date to end_date (capped at D+0 ~ D+3) via JSON/REST endpoints.
+        Fetches NS홈쇼핑 schedule from start_date to end_date (capped at D+0 ~ D+3).
         """
         collected_items: List[ScheduleItem] = []
         max_allowed_date = start_date + timedelta(days=self.max_days_ahead)
@@ -40,7 +41,7 @@ class NsMallScraper(BaseChannelScraper):
                 date_str_compact = current_date.strftime("%Y%m%d")
                 date_str_iso = current_date.strftime("%Y-%m-%d")
 
-                daily_items = await self._fetch_daily_json_schedule(session, date_str_compact, date_str_iso)
+                daily_items = await self._fetch_daily_schedule(session, date_str_compact, date_str_iso)
                 for item in daily_items:
                     collected_items.append(item)
 
@@ -49,73 +50,92 @@ class NsMallScraper(BaseChannelScraper):
 
         return collected_items
 
-    async def _fetch_daily_json_schedule(
+    async def _fetch_daily_schedule(
         self,
         session: aiohttp.ClientSession,
         date_str_compact: str,
         date_str_iso: str
     ) -> List[ScheduleItem]:
         """
-        Queries NS홈쇼핑 mobile TV schedule JSON/REST endpoints in priority order.
+        Queries NS홈쇼핑 mobile endpoints with JSON parsing and BeautifulSoup HTML fallback.
         """
         params = {}
         params["selectDay"] = date_str_compact
-        params["searchDate"] = date_str_compact
-        params["formDate"] = date_str_compact
-        params["brodDt"] = date_str_compact
         params["cnnlCd"] = "TV"
-        params["accptPath"] = "500"
-        params["accptPathCd"] = "500"
 
         extra_headers = {}
-        extra_headers["Referer"] = "https://m.nsmall.com/store/fixed/schedule"
+        extra_headers["Accept"] = "application/json, text/plain, text/html, */*"
+        extra_headers["Referer"] = "https://m.nsmall.com/tv/schedule"
         extra_headers["X-Requested-With"] = "XMLHttpRequest"
-        extra_headers["Accept"] = "application/json, text/plain, */*"
 
-        endpoints = []
-        endpoints.append(self.rest_api_url)
-        endpoints.append(self.nsapi_url)
-        endpoints.append(self.ajax_legacy_url)
-        endpoints.append(self.page_url_template.format(date_compact=date_str_compact))
+        last_error: Exception = ScraperParseException("NS_AllEndpointsFailed")
 
-        last_error: Exception = ScraperParseException("NS_JSONEndpointNotFound")
+        # 1. Primary REST API: getTvScheduleList
+        try:
+            raw_text = await self.fetch_text(
+                session,
+                self.rest_api_url,
+                params=params,
+                extra_headers=extra_headers
+            )
+            items = self._parse_payload(raw_text, date_str_iso)
+            return items
+        except Exception as e1:
+            last_error = e1
 
-        for endpoint in endpoints:
-            try:
-                raw_text = await self.fetch_text(
-                    session,
-                    endpoint,
-                    params=params,
-                    extra_headers=extra_headers
-                )
-                items = self._parse_payload(raw_text, date_str_iso)
-                return items
-            except Exception as err:
-                last_error = err
-                continue
+        # 2. Page URL Template (HTML)
+        try:
+            page_url = self.page_url_template.format(date_compact=date_str_compact)
+            page_headers = {}
+            page_headers["Referer"] = "https://m.nsmall.com/"
+            raw_text = await self.fetch_text(
+                session,
+                page_url,
+                extra_headers=page_headers
+            )
+            items = self._parse_payload(raw_text, date_str_iso)
+            return items
+        except Exception as e2:
+            last_error = e2
+
+        # 3. Legacy AJAX URL
+        try:
+            legacy_params = {}
+            legacy_params["selectDay"] = date_str_compact
+            legacy_params["cnnlCd"] = "TV"
+            raw_text = await self.fetch_text(
+                session,
+                self.ajax_legacy_url,
+                params=legacy_params,
+                extra_headers=extra_headers
+            )
+            items = self._parse_payload(raw_text, date_str_iso)
+            return items
+        except Exception as e3:
+            last_error = e3
 
         raise last_error
 
     def _parse_payload(self, raw_text: str, date_str_iso: str) -> List[ScheduleItem]:
         """
-        Extracts schedule items from NS홈쇼핑 JSON response or embedded Nuxt/Next JSON payloads.
+        Extracts schedule items from NS홈쇼핑 JSON response or BeautifulSoup HTML fallback.
         """
         if (not raw_text or len(raw_text.strip()) == 0):
             raise ScraperParseException("EmptyResponse")
 
         stripped = raw_text.strip()
 
-        # 1. Direct JSON object or array
+        # 1. Direct JSON response
         if (stripped.startswith("{") or stripped.startswith("[")):
             try:
                 data = json.loads(stripped)
                 return self._extract_from_json(data, date_str_iso)
-            except Exception as e:
-                raise ScraperParseException(f"JSONParseError: {str(e)}") from e
+            except Exception:
+                pass
 
-        # 2. Embedded __NUXT__, __NEXT_DATA__, or schedule JSON blocks
+        # 2. Embedded JSON blocks in HTML
         json_blocks = re.findall(
-            r"(?:__NEXT_DATA__|__NUXT_DATA__|scheduleList|TotalOrgan|tvScheduleList|msg)\s*[=:]\s*(\{.*?\}|\[.*?\])\s*[;<\n]",
+            r"(?:__NEXT_DATA__|__NUXT_DATA__|scheduleList|TotalOrgan|tvScheduleList|goodsList|msg)\s*[=:]\s*(\{.*?\}|\[.*?\])\s*[;<\n]",
             raw_text,
             re.DOTALL
         )
@@ -126,19 +146,81 @@ class NsMallScraper(BaseChannelScraper):
             except Exception:
                 continue
 
-        # 3. Inline JSON object extraction for goodsName / unitName / partNumber
-        inline_objects = re.findall(r"\{[^{}]*?(?:\"goodsName\"|\"unitName\"|\"partNumber\"|\"pgmNm\")[^{}]*?\}", raw_text)
-        if (len(inline_objects) > 0):
-            parsed_list = []
-            for obj_str in inline_objects:
-                try:
-                    parsed_list.append(json.loads(obj_str))
-                except Exception:
-                    continue
-            if (len(parsed_list) > 0):
-                return self._extract_from_json(parsed_list, date_str_iso)
+        # 3. HTML DOM parsing via BeautifulSoup fallback
+        items = self._parse_html_dom(raw_text, date_str_iso)
+        return items
 
-        raise ScraperParseException("JSONPayloadNotFound")
+    def _parse_html_dom(self, html_text: str, date_str_iso: str) -> List[ScheduleItem]:
+        """
+        Parses NS홈쇼핑 HTML markup for schedule product items.
+        """
+        soup = BeautifulSoup(html_text, "html.parser")
+        product_elements = soup.select(
+            ".product-item, div.schedule-item, li.schedule-item, div.prd-box, li.prd-item, "
+            "div.tv-schedule-item, .goods-item, li.item, div.item-box, li[data-goods-cd]"
+        )
+
+        if (len(product_elements) == 0):
+            # Broader selection for product links
+            product_elements = soup.select("li:has(a[href*='goods'])")
+
+        if (len(product_elements) == 0):
+            raise ScraperParseException("SelectorNotFound")
+
+        items: List[ScheduleItem] = []
+        current_time_str = "00:00"
+
+        for elem in product_elements:
+            time_node = elem.select_one(".time, .broad-time, .txt-time, span.time, em.time, strong.time")
+            if (time_node is not None):
+                time_match = re.search(r"(\d{1,2}:\d{2})", time_node.get_text(strip=True))
+                if (time_match is not None):
+                    current_time_str = time_match.group(1)
+
+            name_node = elem.select_one(".prd-name, .goods-name, .tit, .title, p.name, .goods_name, .product_name")
+            if (name_node is None):
+                continue
+
+            product_name = name_node.get_text(strip=True)
+            if (not product_name):
+                continue
+
+            cat_node = elem.select_one(".cate, .category, .tag, .badge")
+            category_text = "건강식품"
+            if (cat_node is not None):
+                category_text = cat_node.get_text(strip=True)
+
+            if (not self.is_health_food_item(product_name, category_text)):
+                continue
+
+            price_str = ""
+            price_node = elem.select_one(".price, .num, .selling-price, .txt_price, strong.price")
+            if (price_node is not None):
+                digits = re.sub(r"[^\d]", "", price_node.get_text(strip=True))
+                if (digits):
+                    price_str = digits
+
+            link_url = ""
+            link_node = elem.select_one("a[href]")
+            if (link_node is not None):
+                href_val = str(link_node.get("href", ""))
+                if (href_val.startswith("http")):
+                    link_url = href_val
+                elif (href_val.startswith("/")):
+                    link_url = f"https://m.nsmall.com{href_val}"
+
+            schedule_item = ScheduleItem(
+                broadcast_date=date_str_iso,
+                broadcast_time=current_time_str,
+                channel=self.channel_name,
+                category="건강식품",
+                product_name=product_name,
+                price=price_str,
+                link_url=link_url
+            )
+            items.append(schedule_item)
+
+        return items
 
     def _extract_from_json(self, data: Any, date_str_iso: str) -> List[ScheduleItem]:
         """

@@ -14,15 +14,14 @@ logger = logging.getLogger(__name__)
 class LotteImallScraper(BaseChannelScraper):
     """
     롯데홈쇼핑 mobile public schedule scraper (D+0 ~ D+3).
-    Targets mobile TV schedule endpoints (viewTvSchedule.lotte and JSON/AJAX schedule APIs).
+    Directly targets mobile AJAX schedule endpoint (selectTvScheduleListAjax.lotte) via POST.
     """
 
     def __init__(self) -> None:
         super().__init__(channel_name="롯데홈쇼핑", max_days_ahead=3, timeout_seconds=15)
-        self.primary_api_url = "https://m.lotteimall.com/display/viewTvSchedule.lotte"
-        self.ajax_api_url = "https://m.lotteimall.com/display/selectTvScheduleListAjax.lotte"
+        self.mobile_ajax_url = "https://m.lotteimall.com/display/selectTvScheduleListAjax.lotte"
         self.pc_ajax_url = "https://www.lotteimall.com/display/selectTvScheduleListAjax.lotte"
-        self.pc_schedule_url = "https://www.lotteimall.com/display/viewTvSchedule.lotte"
+        self.mobile_view_url = "https://m.lotteimall.com/display/viewTvSchedule.lotte"
 
     async def fetch_schedule(self, start_date: date, end_date: date) -> List[ScheduleItem]:
         """
@@ -41,7 +40,7 @@ class LotteImallScraper(BaseChannelScraper):
                 date_str_compact = current_date.strftime("%Y%m%d")
                 date_str_iso = current_date.strftime("%Y-%m-%d")
 
-                daily_items = await self._fetch_single_date(session, date_str_compact, date_str_iso)
+                daily_items = await self._fetch_daily_schedule(session, date_str_compact, date_str_iso)
                 for item in daily_items:
                     collected_items.append(item)
 
@@ -50,90 +49,123 @@ class LotteImallScraper(BaseChannelScraper):
 
         return collected_items
 
-    async def _fetch_single_date(
+    async def _fetch_daily_schedule(
         self,
         session: aiohttp.ClientSession,
         date_str_compact: str,
         date_str_iso: str
     ) -> List[ScheduleItem]:
         """
-        Attempts to fetch 롯데홈쇼핑 schedule via mobile viewTvSchedule.lotte and AJAX endpoints.
+        Queries 롯데홈쇼핑 schedule via POST to selectTvScheduleListAjax.lotte with form data.
         """
-        params = {}
-        params["bd_date"] = date_str_compact
-        params["searchDate"] = date_str_compact
-        params["broad_date"] = date_str_compact
-        params["chnl_gb"] = "01"
+        form_data = {}
+        form_data["bd_date"] = date_str_compact
+        form_data["chnl_gb"] = "01"
+        form_data["searchDate"] = date_str_compact
 
         extra_headers = {}
-        extra_headers["Referer"] = "https://m.lotteimall.com/display/viewTvSchedule.lotte"
         extra_headers["X-Requested-With"] = "XMLHttpRequest"
+        extra_headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
+        extra_headers["Referer"] = "https://m.lotteimall.com/display/viewTvSchedule.lotte"
+        extra_headers["Accept"] = "application/json, text/javascript, text/html, */*; q=0.01"
 
-        endpoints = []
-        endpoints.append(self.primary_api_url)
-        endpoints.append(self.ajax_api_url)
-        endpoints.append(self.pc_ajax_url)
-        endpoints.append(self.pc_schedule_url)
+        last_error: Exception = ScraperParseException("Lotte_AllEndpointsFailed")
 
-        last_error: Exception = ScraperParseException("AllEndpointsFailed")
+        # 1. Primary: Mobile POST selectTvScheduleListAjax.lotte
+        try:
+            raw_text = await self.fetch_post_text(
+                session,
+                self.mobile_ajax_url,
+                form_data=form_data,
+                extra_headers=extra_headers
+            )
+            items = self._parse_payload(raw_text, date_str_iso)
+            return items
+        except Exception as e1:
+            last_error = e1
 
-        for endpoint_url in endpoints:
-            try:
-                raw_text = await self.fetch_text(
-                    session,
-                    endpoint_url,
-                    params=params,
-                    extra_headers=extra_headers
-                )
-                parsed_items = self._parse_response(raw_text, date_str_iso)
-                return parsed_items
-            except Exception as err:
-                last_error = err
-                continue
+        # 2. Secondary: PC POST selectTvScheduleListAjax.lotte
+        try:
+            pc_headers = {}
+            pc_headers["X-Requested-With"] = "XMLHttpRequest"
+            pc_headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
+            pc_headers["Referer"] = "https://www.lotteimall.com/display/viewTvSchedule.lotte"
+            raw_text = await self.fetch_post_text(
+                session,
+                self.pc_ajax_url,
+                form_data=form_data,
+                extra_headers=pc_headers
+            )
+            items = self._parse_payload(raw_text, date_str_iso)
+            return items
+        except Exception as e2:
+            last_error = e2
+
+        # 3. Fallback: Mobile GET viewTvSchedule.lotte with params
+        try:
+            params = {}
+            params["bd_date"] = date_str_compact
+            params["chnl_gb"] = "01"
+            raw_text = await self.fetch_text(
+                session,
+                self.mobile_view_url,
+                params=params,
+                extra_headers=extra_headers
+            )
+            items = self._parse_payload(raw_text, date_str_iso)
+            return items
+        except Exception as e3:
+            last_error = e3
 
         raise last_error
 
-    def _parse_response(self, raw_text: str, date_str_iso: str) -> List[ScheduleItem]:
+    def _parse_payload(self, raw_text: str, date_str_iso: str) -> List[ScheduleItem]:
         """
-        Parses 롯데홈쇼핑 schedule response (JSON payload, embedded script JSON, or HTML fragment).
+        Parses 롯데홈쇼핑 response (JSON or HTML fragment).
         """
         if (not raw_text or len(raw_text.strip()) == 0):
             raise ScraperParseException("EmptyResponse")
 
         stripped = raw_text.strip()
+
+        # 1. Direct JSON response
         if (stripped.startswith("{") or stripped.startswith("[")):
             try:
                 data = json.loads(stripped)
                 return self._extract_from_json(data, date_str_iso)
-            except Exception as e:
-                raise ScraperParseException(f"JSONParseError: {str(e)}") from e
+            except Exception:
+                pass
 
-        # Try extracting JSON arrays/objects embedded inside <script> tags
-        script_json_matches = re.findall(
-            r"(?:scheduleList|tvScheduleList|broadList|goodsList| INITIAL_STATE|__NEXT_DATA__)\s*[=:]\s*(\[.*?\]|\{.*?\})\s*[;<\n]",
+        # 2. Embedded JSON script blocks
+        json_blocks = re.findall(
+            r"(?:__NEXT_DATA__|scheduleList|tvScheduleList|broadList|goodsList|dataList)\s*[=:]\s*(\{.*?\}|\[.*?\])\s*[;<\n]",
             raw_text,
             re.DOTALL
         )
-        for match_str in script_json_matches:
+        for block_str in json_blocks:
             try:
-                json_obj = json.loads(match_str)
-                return self._extract_from_json(json_obj, date_str_iso)
+                parsed_json = json.loads(block_str)
+                return self._extract_from_json(parsed_json, date_str_iso)
             except Exception:
                 continue
 
-        soup = BeautifulSoup(raw_text, "html.parser")
-        next_script = soup.select_one("script#__NEXT_DATA__")
-        if (next_script is not None and next_script.string):
-            try:
-                json_data = json.loads(next_script.string)
-                return self._extract_from_json(json_data, date_str_iso)
-            except Exception as e:
-                raise ScraperParseException(f"NextDataParseError: {str(e)}") from e
+        # 3. HTML DOM parsing via BeautifulSoup
+        items = self._parse_html_dom(raw_text, date_str_iso)
+        return items
 
+    def _parse_html_dom(self, html_text: str, date_str_iso: str) -> List[ScheduleItem]:
+        """
+        Parses 롯데홈쇼핑 HTML markup for schedule product items.
+        """
+        soup = BeautifulSoup(html_text, "html.parser")
         product_elements = soup.select(
             "li.broad-item, div.broad-item, li.schedule-item, div.prd-item, ul.list_tv > li, "
-            "div.tv_schedule_list li, div.schedule_list li, div.box_prd, li[data-goods-no]"
+            "div.tv_schedule_list li, div.schedule_list li, div.box_prd, li[data-goods-no], "
+            "div.item_box, li.item, div.tv-item"
         )
+
+        if (len(product_elements) == 0):
+            product_elements = soup.select("li:has(a[href*='goods'])")
 
         if (len(product_elements) == 0):
             raise ScraperParseException("SelectorNotFound")
@@ -148,7 +180,7 @@ class LotteImallScraper(BaseChannelScraper):
                 if (time_match is not None):
                     current_time_str = time_match.group(1)
 
-            name_node = elem.select_one(".prd_name, .tit_prd, .name, .title, .txt_tit, p.tit, a.link")
+            name_node = elem.select_one(".prd_name, .tit_prd, .name, .title, .txt_tit, p.tit, a.link, .prd-name")
             if (name_node is None):
                 continue
 
@@ -156,7 +188,7 @@ class LotteImallScraper(BaseChannelScraper):
             if (not product_name):
                 continue
 
-            cat_node = elem.select_one(".cate, .category")
+            cat_node = elem.select_one(".cate, .category, .tag, .badge")
             category_text = "건강식품"
             if (cat_node is not None):
                 category_text = cat_node.get_text(strip=True)
@@ -165,7 +197,7 @@ class LotteImallScraper(BaseChannelScraper):
                 continue
 
             price_str = ""
-            price_node = elem.select_one(".price, .txt_price, .num, strong.price")
+            price_node = elem.select_one(".price, .txt_price, .num, strong.price, .sale_price")
             if (price_node is not None):
                 digits = re.sub(r"[^\d]", "", price_node.get_text(strip=True))
                 if (digits):
@@ -219,7 +251,7 @@ class LotteImallScraper(BaseChannelScraper):
 
         _walk(data)
         if (len(candidates) == 0):
-            raise ScraperParseException("SelectorNotFound")
+            raise ScraperParseException("EmptyJSONScheduleNodes")
 
         for item_dict in candidates:
             product_name = str(

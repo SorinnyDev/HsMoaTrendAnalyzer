@@ -5,6 +5,7 @@ import json
 import re
 import logging
 import aiohttp
+from bs4 import BeautifulSoup
 from Domain.Models.Schedule import ScheduleItem
 from Infrastructure.Scrapers.BaseChannelScraper import BaseChannelScraper, ScraperParseException
 
@@ -13,19 +14,18 @@ logger = logging.getLogger(__name__)
 class GsShopScraper(BaseChannelScraper):
     """
     GS SHOP mobile public schedule scraper (D+0 ~ D+6).
-    Directly calls GS SHOP mobile internal JSON/AJAX schedule APIs without HTML DOM reliance.
+    Uses POST request to tvScheduleAjax.gs with XHR headers and dual JSON/HTML parsing.
     """
 
     def __init__(self) -> None:
         super().__init__(channel_name="GS SHOP", max_days_ahead=6, timeout_seconds=15)
         self.ajax_schedule_url = "https://m.gsshop.com/shop/tv/tvScheduleAjax.gs"
         self.api_schedule_url = "https://m.gsshop.com/api/shop/tv/tvScheduleList.gs"
-        self.detail_schedule_url = "https://m.gsshop.com/shop/tv/tvScheduleDetail.gs"
-        self.page_schedule_url = "https://m.gsshop.com/shop/tv/tvSchedule.gs"
+        self.fallback_page_url = "https://www.gsshop.com/shop/tv/tvSchedule.gs"
 
     async def fetch_schedule(self, start_date: date, end_date: date) -> List[ScheduleItem]:
         """
-        Fetches GS SHOP schedule from start_date to end_date (capped at D+0 ~ D+6) via JSON/AJAX endpoints.
+        Fetches GS SHOP schedule from start_date to end_date (capped at D+0 ~ D+6) via POST AJAX endpoints.
         """
         collected_items: List[ScheduleItem] = []
         max_allowed_date = start_date + timedelta(days=self.max_days_ahead)
@@ -40,7 +40,7 @@ class GsShopScraper(BaseChannelScraper):
                 date_str_compact = current_date.strftime("%Y%m%d")
                 date_str_iso = current_date.strftime("%Y-%m-%d")
 
-                daily_items = await self._fetch_daily_json_schedule(session, date_str_compact, date_str_iso)
+                daily_items = await self._fetch_daily_schedule(session, date_str_compact, date_str_iso)
                 for item in daily_items:
                     collected_items.append(item)
 
@@ -49,69 +49,96 @@ class GsShopScraper(BaseChannelScraper):
 
         return collected_items
 
-    async def _fetch_daily_json_schedule(
+    async def _fetch_daily_schedule(
         self,
         session: aiohttp.ClientSession,
         date_str_compact: str,
         date_str_iso: str
     ) -> List[ScheduleItem]:
         """
-        Queries GS SHOP mobile internal JSON/AJAX endpoints in priority order.
+        Queries GS SHOP mobile schedule via POST to tvScheduleAjax.gs with form data.
         """
-        params = {}
-        params["searchDate"] = date_str_compact
-        params["broadDate"] = date_str_compact
-        params["selectDate"] = date_str_compact
-        params["ch"] = "live"
-        params["_"] = date_str_compact
+        form_data = {}
+        form_data["selectDate"] = date_str_compact
+        form_data["searchDate"] = date_str_compact
+        form_data["ch"] = "live"
 
         extra_headers = {}
-        extra_headers["Referer"] = "https://m.gsshop.com/shop/tv/tvSchedule.gs"
         extra_headers["X-Requested-With"] = "XMLHttpRequest"
-        extra_headers["Accept"] = "application/json, text/javascript, */*; q=0.01"
+        extra_headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
+        extra_headers["Referer"] = "https://m.gsshop.com/shop/tv/tvScheduleMain.gs"
+        extra_headers["Accept"] = "text/html,application/xhtml+xml,application/json,text/javascript,*/*;q=0.9"
 
-        endpoints = []
-        endpoints.append(self.ajax_schedule_url)
-        endpoints.append(self.api_schedule_url)
-        endpoints.append(self.detail_schedule_url)
-        endpoints.append(self.page_schedule_url)
+        last_error: Exception = ScraperParseException("GS_AllEndpointsFailed")
 
-        last_error: Exception = ScraperParseException("GS_JSONEndpointNotFound")
-
-        for endpoint in endpoints:
-            try:
-                raw_text = await self.fetch_text(
-                    session,
-                    endpoint,
-                    params=params,
-                    extra_headers=extra_headers
-                )
-                items = self._parse_payload(raw_text, date_str_iso)
+        # 1. Primary: POST to tvScheduleAjax.gs
+        try:
+            raw_text = await self.fetch_post_text(
+                session,
+                self.ajax_schedule_url,
+                form_data=form_data,
+                extra_headers=extra_headers
+            )
+            items = self._parse_payload(raw_text, date_str_iso)
+            if (len(items) > 0 or "html" in raw_text or "prd" in raw_text):
                 return items
-            except Exception as err:
-                last_error = err
-                continue
+        except Exception as e1:
+            last_error = e1
+
+        # 2. Secondary: GET to tvScheduleAjax.gs with params
+        try:
+            params = {}
+            params["selectDate"] = date_str_compact
+            params["searchDate"] = date_str_compact
+            params["ch"] = "live"
+            raw_text = await self.fetch_text(
+                session,
+                self.ajax_schedule_url,
+                params=params,
+                extra_headers=extra_headers
+            )
+            items = self._parse_payload(raw_text, date_str_iso)
+            return items
+        except Exception as e2:
+            last_error = e2
+
+        # 3. Fallback: PC Schedule URL
+        try:
+            pc_params = {}
+            pc_params["searchDate"] = date_str_compact
+            pc_headers = {}
+            pc_headers["Referer"] = "https://www.gsshop.com/"
+            raw_text = await self.fetch_text(
+                session,
+                self.fallback_page_url,
+                params=pc_params,
+                extra_headers=pc_headers
+            )
+            items = self._parse_payload(raw_text, date_str_iso)
+            return items
+        except Exception as e3:
+            last_error = e3
 
         raise last_error
 
     def _parse_payload(self, raw_text: str, date_str_iso: str) -> List[ScheduleItem]:
         """
-        Extracts schedule items from GS SHOP JSON response or embedded JSON script objects.
+        Parses GS SHOP schedule response supporting direct JSON or HTML fragment parsing.
         """
         if (not raw_text or len(raw_text.strip()) == 0):
             raise ScraperParseException("EmptyResponse")
 
         stripped = raw_text.strip()
 
-        # 1. Direct JSON object or array
+        # Try JSON parsing
         if (stripped.startswith("{") or stripped.startswith("[")):
             try:
                 data = json.loads(stripped)
                 return self._extract_from_json(data, date_str_iso)
-            except Exception as e:
-                raise ScraperParseException(f"JSONParseError: {str(e)}") from e
+            except Exception:
+                pass
 
-        # 2. JSONP or embedded JS variable assignment (e.g., var scheduleData = {...}; or __NEXT_DATA__)
+        # Try extracting JSON blocks inside response
         json_blocks = re.findall(
             r"(?:__NEXT_DATA__|scheduleList|prdList|tvScheduleList|broadList|data)\s*[=:]\s*(\{.*?\}|\[.*?\])\s*[;<\n]",
             raw_text,
@@ -124,19 +151,83 @@ class GsShopScraper(BaseChannelScraper):
             except Exception:
                 continue
 
-        # 3. Regex extraction of product JSON objects inside script blocks
-        inline_objects = re.findall(r"\{[^{}]*?(?:\"prdNm\"|\"goodsNm\"|\"prdCd\"|\"exposePrice\")[^{}]*?\}", raw_text)
-        if (len(inline_objects) > 0):
-            parsed_list = []
-            for obj_str in inline_objects:
-                try:
-                    parsed_list.append(json.loads(obj_str))
-                except Exception:
-                    continue
-            if (len(parsed_list) > 0):
-                return self._extract_from_json(parsed_list, date_str_iso)
+        # Try HTML DOM parsing via BeautifulSoup
+        items = self._parse_html_dom(raw_text, date_str_iso)
+        return items
 
-        raise ScraperParseException("JSONPayloadNotFound")
+    def _parse_html_dom(self, html_text: str, date_str_iso: str) -> List[ScheduleItem]:
+        """
+        Parses GS SHOP HTML fragment for schedule items.
+        """
+        soup = BeautifulSoup(html_text, "html.parser")
+        product_elements = soup.select(
+            "li.prd-item, div.prd-item, dl.prd-info, div.schedule-item, article.tv-item, "
+            "li[data-prd-cd], div.broad-item, .product-item, .item-box, li.broad_item, div.tv-item"
+        )
+
+        if (len(product_elements) == 0):
+            # Check for any li containing prd links
+            product_elements = soup.select("li:has(a[href*='prd'])")
+
+        if (len(product_elements) == 0):
+            raise ScraperParseException("SelectorNotFound")
+
+        items: List[ScheduleItem] = []
+        current_time_str = "00:00"
+
+        for elem in product_elements:
+            time_node = elem.select_one(".time, .broad-time, .txt-time, span.hour, strong.time, .txt_time")
+            if (time_node is not None):
+                extracted_time = time_node.get_text(strip=True)
+                time_match = re.search(r"(\d{1,2}:\d{2})", extracted_time)
+                if (time_match is not None):
+                    current_time_str = time_match.group(1)
+
+            name_node = elem.select_one(".prd-name, .tit, .name, dt, a.prd-link, p.title, .txt_title, .prd_name")
+            if (name_node is None):
+                continue
+
+            product_name = name_node.get_text(strip=True)
+            if (not product_name):
+                continue
+
+            cat_node = elem.select_one(".cate, .category, .badge, .tag")
+            category_text = "건강식품"
+            if (cat_node is not None):
+                category_text = cat_node.get_text(strip=True)
+
+            if (not self.is_health_food_item(product_name, category_text)):
+                continue
+
+            price_str = ""
+            price_node = elem.select_one(".price, .set-price, .selling-price, strong.num, .txt_price")
+            if (price_node is not None):
+                raw_price = price_node.get_text(strip=True)
+                digits = re.sub(r"[^\d]", "", raw_price)
+                if (digits):
+                    price_str = digits
+
+            link_url = ""
+            link_node = elem.select_one("a[href]")
+            if (link_node is not None):
+                href_val = str(link_node.get("href", ""))
+                if (href_val.startswith("http")):
+                    link_url = href_val
+                elif (href_val.startswith("/")):
+                    link_url = f"https://m.gsshop.com{href_val}"
+
+            schedule_item = ScheduleItem(
+                broadcast_date=date_str_iso,
+                broadcast_time=current_time_str,
+                channel=self.channel_name,
+                category="건강식품",
+                product_name=product_name,
+                price=price_str,
+                link_url=link_url
+            )
+            items.append(schedule_item)
+
+        return items
 
     def _extract_from_json(self, data: Any, date_str_iso: str) -> List[ScheduleItem]:
         """

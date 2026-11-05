@@ -100,6 +100,37 @@ class BaseChannelScraper(ABC):
         except Exception as e:
             raise e
 
+    async def fetch_post_text(
+        self,
+        session: aiohttp.ClientSession,
+        url: str,
+        form_data: Optional[Dict[str, str]] = None,
+        params: Optional[Dict[str, str]] = None,
+        extra_headers: Optional[Dict[str, str]] = None
+    ) -> str:
+        """
+        Executes a lightweight HTTP POST request using aiohttp with timeout, form data, and User-Agent rotation.
+        Raises descriptive exceptions on HTTP or network errors.
+        """
+        headers = self.get_rotated_headers(extra_headers)
+        timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
+
+        try:
+            async with session.post(url, data=form_data, params=params, headers=headers, timeout=timeout) as response:
+                if (response.status != 200):
+                    raise aiohttp.ClientResponseError(
+                        request_info=response.request_info,
+                        history=response.history,
+                        status=response.status,
+                        message=f"HTTPStatus_{response.status}"
+                    )
+                text_body = await response.text(errors="replace")
+                return text_body
+        except asyncio.TimeoutError as te:
+            raise TimeoutError(f"RequestTimeout({self.timeout_seconds}s): {url}") from te
+        except Exception as e:
+            raise e
+
     async def fetch_json(
         self,
         session: aiohttp.ClientSession,

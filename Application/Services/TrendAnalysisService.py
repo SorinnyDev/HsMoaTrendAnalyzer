@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class TrendAnalysisService:
     """
     Application service that coordinates multi-channel scraping, health tracking,
-    data persistence, and Gemini AI trend analysis with defensive fallback handling.
+    data persistence across 4 storage targets, and Gemini AI trend analysis.
     """
 
     def __init__(self) -> None:
@@ -118,13 +118,22 @@ class TrendAnalysisService:
             agg_spec["broadcast_date"] = "count"
 
             grouped_df = df_window.groupby(["product_name", "category"], as_index=False).agg(agg_spec)
-            sorted_df = grouped_df.sort_values(by="power_score", ascending=False).head(30)
-            return sorted_df.to_string(index=False)
+            sorted_df = grouped_df.sort_values(by="power_score", ascending=False).head(35)
+            
+            summary_lines: List[str] = []
+            for _, row in sorted_df.iterrows():
+                p_name = row["product_name"]
+                cat = row["category"]
+                ps_val = round(float(row["power_score"]), 1)
+                b_cnt = int(row["broadcast_date"])
+                summary_lines.append(f"- 상품명: {p_name} | 카테고리: {cat} | Power Score: {ps_val} | 방송횟수: {b_cnt}회")
+                
+            return "\n".join(summary_lines)
 
         except Exception as agg_err:
             logger.error(f"Error during DataFrame aggregation, falling back to plain text summary: {str(agg_err)}")
             fallback_lines: List[str] = []
-            limit_count = min(len(active_records), 30)
+            limit_count = min(len(active_records), 35)
             for idx in range(limit_count):
                 rec = active_records[idx]
                 p_name = rec.get("product_name", "미분류")
@@ -135,8 +144,7 @@ class TrendAnalysisService:
 
     def _build_deterministic_fallback_report(self, active_records: List[Dict[str, Any]], stats_summary: str) -> str:
         """
-        Generates a structured fallback report when Gemini API fails or returns an error string,
-        ensuring valid collected channel data (e.g., CJ온스타일 95 items) is still reported cleanly.
+        Generates a structured fallback report only when all Gemini API models fail.
         """
         lines: List[str] = []
         lines.append("📊 [주간 건강기능식품 편성 데이터 요약 리포트 (Fallback)]")
@@ -185,7 +193,11 @@ class TrendAnalysisService:
     async def run_sliding_window_sync(self) -> None:
         """
         Coordinates the 7-day sliding window (D+0 ~ D+6) parallel synchronization process across 5 channels.
-        Even if several channels fail, normal channels' items are guaranteed to generate a Gemini report.
+        Guarantees data integrity across 4 storage targets:
+        1. crawling_history.db (date status & channel_health_history)
+        2. 7day_forecast_sync.xlsx (upsert active window slots)
+        3. 건기식 - statistics.xlsx (cumulative ingredient Power Score stats)
+        4. last_ai_report.txt (full strategy report backup)
         """
         window_service = WindowService(window_size=7)
         sync_manager = SyncManager()
@@ -201,38 +213,46 @@ class TrendAnalysisService:
             # 1. Parallel Fault-Tolerant Collection across 5 Home Shopping Channels
             all_collected_items, channel_results = await self.aggregator.collect_all(start_dt, end_dt)
 
-            # 2. Update channel_health_history in crawling_history.db
+            # 2. Update channel_health_history in crawling_history.db (Target 1)
             enriched_health_results = self._update_and_enrich_health_results(channel_results)
 
-            # 3. Record per-date crawling history and monthly Excel sheets (isolated try-except)
-            try:
-                items_by_date = {}
-                for date_str in target_dates:
-                    items_by_date[date_str] = []
+            # 3. Organize items by date and record status
+            items_by_date = {}
+            for date_str in target_dates:
+                items_by_date[date_str] = []
 
-                for item in all_collected_items:
-                    if (item.broadcast_date in items_by_date):
-                        items_by_date[item.broadcast_date].append(item)
-                    else:
-                        items_by_date[item.broadcast_date] = [item]
+            for item in all_collected_items:
+                if (item.broadcast_date in items_by_date):
+                    items_by_date[item.broadcast_date].append(item)
+                else:
+                    items_by_date[item.broadcast_date] = [item]
 
-                for date_str, date_items in items_by_date.items():
-                    if (len(date_items) > 0):
-                        dt_obj = datetime.strptime(date_str, "%Y-%m-%d")
-                        month_str = dt_obj.strftime("%m월")
-                        sheet_name = dt_obj.strftime("%m-%d")
-                        dedup_date_items = self.deduplicate_items(date_items)
+            for date_str, date_items in items_by_date.items():
+                if (len(date_items) > 0):
+                    dt_obj = datetime.strptime(date_str, "%Y-%m-%d")
+                    month_str = dt_obj.strftime("%m월")
+                    sheet_name = dt_obj.strftime("%m-%d")
+                    dedup_date_items = self.deduplicate_items(date_items)
+                    try:
                         self.repository.save_schedule(dedup_date_items, month_str, sheet_name)
-                        self.db_repo.mark_date_status(date_str, "SUCCESS", len(date_items))
-                    else:
-                        self.db_repo.mark_date_status(date_str, "NO_DATA", 0)
-            except Exception as excel_err:
-                logger.error(f"Non-fatal error saving daily Excel sheets: {str(excel_err)}")
+                    except Exception as save_err:
+                        logger.error(f"Error saving monthly excel for {date_str}: {str(save_err)}")
+                    self.db_repo.mark_date_status(date_str, "SUCCESS", len(date_items))
+                else:
+                    self.db_repo.mark_date_status(date_str, "NO_DATA", 0)
 
-            # 4. Synchronize and Upsert D+0 ~ D+6 Window Data to Excel
+            # 4. Synchronize and Upsert D+0 ~ D+6 Window Data to Excel (Target 2)
             sync_manager.synchronize_window_data(all_collected_items, window_days=7)
 
-            # 5. Retrieve active window items with in-memory fallback if Excel read returns empty
+            # 5. Update cumulative ingredient statistics file: 건기식 - statistics.xlsx (Target 3)
+            for date_str, date_items in items_by_date.items():
+                if (len(date_items) > 0):
+                    try:
+                        await self.trend_manager.process_daily_trends(date_items, date_str)
+                    except Exception as trend_err:
+                        logger.error(f"Error processing daily cumulative trends for {date_str}: {str(trend_err)}")
+
+            # 6. Retrieve active window items with in-memory fallback
             active_items = sync_manager.get_current_window_items()
             if (len(active_items) == 0 and len(all_collected_items) > 0):
                 logger.info("Using in-memory collected items as fallback for report generation.")
@@ -249,7 +269,7 @@ class TrendAnalysisService:
                     try:
                         with open(last_report_path, "r", encoding="utf-8") as f:
                             loaded_text = f.read().strip()
-                            if ("리포트 생성에 실패하였습니다" not in loaded_text):
+                            if ("리포트 생성에 실패하였습니다" not in loaded_text and "Fallback" not in loaded_text):
                                 prev_report = loaded_text
                                 logger.info("Previous analysis context loaded successfully.")
                     except Exception as load_err:
@@ -267,11 +287,12 @@ class TrendAnalysisService:
 
             full_report_text = notifier.build_full_message(report_body, enriched_health_results)
 
+            # 7. Backup full strategy report to last_ai_report.txt & archives (Target 4)
             try:
                 os.makedirs(output_dir, exist_ok=True)
                 if ("리포트 생성에 실패하였습니다" not in report_body):
                     with open(last_report_path, "w", encoding="utf-8") as f:
-                        f.write(full_report_text)
+                        f.write(report_body)
 
                 archive_dir = os.path.join(output_dir, "ai_reports")
                 os.makedirs(archive_dir, exist_ok=True)

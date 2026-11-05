@@ -7,9 +7,10 @@
 ## 1. 프로젝트 개요 및 아키텍처 (Architecture)
 
 ### 1.1 프로젝트 목적
-- **5대 주요 홈쇼핑 채널(GS SHOP, CJ온스타일, NS홈쇼핑, 롯데홈쇼핑, 현대홈쇼핑)**의 비로그인 모바일 공개 편성표 및 내부 JSON/AJAX 엔드포인트를 경량 비동기 HTTP(`aiohttp`) 어댑터로 병렬 수집하여 **건강식품(건강기능식품)** 카테고리의 방송 트렌드를 분석합니다.
+- **5대 주요 홈쇼핑 채널(GS SHOP, CJ온스타일, NS홈쇼핑, 롯데홈쇼핑, 현대홈쇼핑)**의 비로그인 모바일 공개 편성표 및 내부 AJAX/JSON 엔드포인트를 경량 비동기 HTTP(`aiohttp`) 어댑터로 병렬 수집하여 **건강식품(건강기능식품)** 카테고리의 방송 트렌드를 정밀 분석합니다.
 - 채널별 수집 헬스체크 및 연속 실패 일수를 추적(`channel_health_history`)하여 특정 채널 장애 시에도 결함 허용(Fault-tolerant) 방식으로 동작합니다.
-- 방송 시간대별 가중치(**Power Score**)를 산출하고, **Google Gemini AI**를 활용해 원료/브랜드 추출 및 전략적 시장 분석 리포트(성분 인텔리전스 포함)를 생성하여 채널 헬스체크 현황과 함께 **Telegram**으로 자동 발송합니다.
+- 방송 시간대별 가중치(**Power Score**)를 산출하고, **Google Gemini AI**를 활용해 카테고리별 상위 5대 트렌드(데이터 트렌드 및 소싱 전략)와 핵심 시너지 성분 5종(성분 인텔리전스)을 도출하여 채널 헬스체크 현황과 함께 **Telegram**으로 자동 발송합니다.
+- 수집된 편성 데이터는 SQLite 수집 이력 DB, 7일 예측 슬라이딩 윈도우 엑셀, 원료별 Power Score 누적 통계 엑셀, AI 전략 리포트 텍스트 등 4개 저장소에 무결하게 영속화됩니다.
 
 ### 1.2 DDD(도메인 주도 설계) 레이어 구조
 ```text
@@ -20,9 +21,9 @@ HsMoaTrendAnalyzer/
 │       └── main.py                              # CLI 인자 파싱 및 비동기 실행 제어
 ├── Application/
 │   ├── Services/
-│   │   └── TrendAnalysisService.py              # 멀티 채널 병렬 수집, D+7 슬라이딩 윈도우 동기화, 헬스체크 및 AI 리포트 방어/오케스트레이션
+│   │   └── TrendAnalysisService.py              # 멀티 채널 병렬 수집, 4대 저장소 무결 영속화, 헬스체크 및 AI 리포트 오케스트레이션
 │   └── Service/
-│       ├── TrendManager.py                      # 일별 상품 원료/브랜드 AI 분석 및 누적 통계 갱신
+│       ├── TrendManager.py                      # 일별 상품 원료/브랜드 AI 분석 및 누적 통계(건기식 - statistics.xlsx) 갱신
 │       ├── WeightCalculator.py                  # 방송 시간대별 가중치(Power Score) 계산기
 │       └── NotificationService.py               # 채널별 헬스체크 포맷팅 및 Telegram Bot 메시지 발송 서비스
 ├── Domain/
@@ -32,16 +33,16 @@ HsMoaTrendAnalyzer/
 │       └── Service/
 │           └── WindowService.py                 # 7일 슬라이딩 윈도우(D+0 ~ D+6, Today + 6일) 날짜 계산 및 과거 데이터 필터링
 └── Infrastructure/
-    ├── Scrapers/                                # [Adapter Pattern] 5대 홈쇼핑 비로그인 공개 편성표 스크래퍼
-    │   ├── BaseChannelScraper.py                # 추상 인터페이스 (fetch_schedule, fetch_json, 타임아웃, User-Agent 로테이션, 건강식품 필터링)
-    │   ├── GsShopScraper.py                     # GS SHOP 모바일 JSON/AJAX 편성표 어댑터 (D+0 ~ D+6)
+    ├── Scrapers/                                # [Adapter Pattern] 5대 홈쇼핑 비로그인 모바일 편성표 스크래퍼
+    │   ├── BaseChannelScraper.py                # 추상 인터페이스 (fetch_schedule, fetch_text, fetch_post_text, 타임아웃, User-Agent 로테이션, 건기식 필터링)
+    │   ├── GsShopScraper.py                     # GS SHOP 모바일 POST AJAX 편성표 어댑터 (D+0 ~ D+6)
     │   ├── CjOnstyleScraper.py                  # CJ온스타일 모바일 REST/JSON 편성표 어댑터 (D+0 ~ D+6)
-    │   ├── NsMallScraper.py                     # NS홈쇼핑 모바일 JSON/REST 편성표 어댑터 (D+0 ~ D+3)
-    │   ├── LotteImallScraper.py                 # 롯데홈쇼핑 모바일 편성표 어댑터 (D+0 ~ D+3)
+    │   ├── NsMallScraper.py                     # NS홈쇼핑 모바일 REST API + HTML 폴백 편성표 어댑터 (D+0 ~ D+3)
+    │   ├── LotteImallScraper.py                 # 롯데홈쇼핑 모바일 POST AJAX 편성표 어댑터 (D+0 ~ D+3)
     │   ├── HmallScraper.py                      # 현대홈쇼핑 모바일 TV 편성표 JSON/AJAX 어댑터 (D+0 ~ D+3)
     │   └── MultiChannelAggregator.py            # asyncio.gather(..., return_exceptions=True) 기반 5개 채널 병렬 수집 조율기
     ├── AI/
-    │   └── GeminiClient.py                      # Google GenAI (gemini-flash-latest + 모델 폴백) 연동 클라이언트
+    │   └── GeminiClient.py                      # Google GenAI (gemini-flash-latest + 모델 폴백) 전략 리포트 연동 클라이언트
     └── Persistence/
         ├── SqliteRepository.py                  # SQLite 기반 일별 수집 이력(crawling_history) 및 채널 헬스체크(channel_health_history) 영속화
         ├── ExcelRepository.py                   # 월별 편성표 Excel 파일(시트별 일자 저장) 관리
@@ -62,19 +63,18 @@ HsMoaTrendAnalyzer/
 | `--auto` | Flag (`store_true`) | `False` | 자동 연속 수집 모드 (`run_sliding_window_sync()` 실행) |
 | `--send-report` | Flag (`store_true`) | `False` | `daily` 모드 완료 후 누적 통계 기반 AI 요약 리포트 및 헬스체크 현황을 Telegram으로 발송 (`forecast` 모드는 기본 발송 포함) |
 
-### 2.2 핵심 비즈니스 워크플로우
+### 2.2 핵심 비즈니스 워크플로우 및 데이터 보관 무결성
 1. **7일 슬라이딩 윈도우 병렬 동기화 모드 (`--mode forecast` 또는 `--auto`)**
    - `WindowService`를 통해 오늘부터 7일간(`D+0 ~ D+6`)의 날짜 범위를 산출합니다.
-   - `MultiChannelAggregator`가 `asyncio.gather(..., return_exceptions=True)`를 사용해 5개 채널(`GS SHOP`, `CJ온스타일`, `NS홈쇼핑`, `롯데홈쇼핑`, `현대홈쇼핑`)을 비동기 병렬 수집합니다.
-   - 일부 채널에서 파싱 실패나 네트워크 오류가 발생해도 정상 수집된 채널(예: CJ온스타일 등)의 `ScheduleItem`은 중단 없이 합산(Fault-tolerant)됩니다.
-   - `SqliteRepository.update_channel_health()`를 통해 각 채널의 성공/실패 여부와 연속 실패 일수(`consecutive_failures`)를 `channel_health_history` 테이블에 기록합니다.
-   - `SyncManager`를 통해 `7day_forecast_sync.xlsx`에 데이터를 Upsert하고, 윈도우 범위(`D+0 ~ D+6`) 밖의 과거/만료 데이터를 정리합니다. (파일 I/O 실패 시에도 인메모리 수집 데이터 폴백을 통해 리포트 생성을 보장합니다.)
-   - 직전 리포트(`last_ai_report.txt`) 맥락을 로드(실패 문구 오염 방지 필터 포함)하여 `GeminiClient`로 주간 전략 리포트 및 '오늘의 성분 인텔리전스(상위 5개 성분)'를 생성하며, Gemini API 일시 오류 시 다중 모델 폴백(`gemini-flash-latest` -> `gemini-2.0-flash` -> `gemini-1.5-flash`) 및 결정론적 통계 요약 폴백 리포트를 제공합니다.
-   - `NotificationService`가 상단에 `[📡 채널별 편성표 수집 현황]` 블록을 결합하여 Telegram으로 발송하고 `outputs/ai_reports/report_YYYYMMDD.txt`에 아카이빙합니다.
-2. **단일 일자 수집 모드 (`--mode daily --date YYYY-MM-DD`)**
-   - 지정된 단일 날짜에 대해 5대 채널 병렬 수집 및 채널별 헬스체크 DB 갱신을 수행합니다.
-   - 채널+상품명 기준 중복 제거(`deduplicate_items`) 후 `홈쇼핑모아 편성표 - MM월.xlsx` 내 `MM-DD` 시트에 저장합니다.
-   - `TrendManager`를 통해 브랜드/원료를 Gemini로 추출하고 시간대별 가중치를 합산하여 `건기식 - statistics.xlsx`에 누적 저장합니다.
+   - `MultiChannelAggregator`가 `asyncio.gather(..., return_exceptions=True)`를 사용해 5개 채널을 비동기 병렬 수집합니다.
+   - 일부 채널의 파싱 지연 또는 장애 발생 시에도 정상 수집된 채널의 `ScheduleItem`은 중단 없이 온전히 합산(Fault-tolerant)됩니다.
+   - **4대 저장소 무결 영속화 프로세스**:
+     1. `outputs/crawling_history.db`: 각 채널의 성공/실패 상태 및 연속 실패 일수(`consecutive_failures`)를 `channel_health_history`에 갱신하고, 일자별 수집 상태를 기록합니다.
+     2. `outputs/7day_forecast_sync.xlsx`: D+0 ~ D+6 윈도우 데이터를 Upsert하고 범위 밖의 만료 데이터를 정리합니다.
+     3. `outputs/건기식 - statistics.xlsx`: 수집된 일자별 편성 상품에 대해 `TrendManager.process_daily_trends()`를 실행하여 원료별 Power Score 및 참여 브랜드 누적 통계를 갱신합니다.
+     4. `outputs/last_ai_report.txt`: Gemini AI 전략 리포트 원문을 백업하고, `outputs/ai_reports/report_YYYYMMDD.txt`에 일자별 아카이빙합니다.
+   - 직전 리포트 맥락을 로드하여 `GeminiClient`로 2개 핵심 섹션(카테고리별 상위 5대 트렌드, 오늘의 성분 인텔리전스 5종) 리포트를 렌더링합니다.
+   - `NotificationService`가 상단에 `[📡 채널별 편성표 수집 현황]` 블록을 결합하여 Telegram으로 발송합니다.
 
 ### 2.3 방송 시간대별 가중치 (`WeightCalculator`)
 | 시간대 구분 | 해당 시간 (Hour 기준) | 가중치 (Power Score) |
@@ -90,36 +90,44 @@ HsMoaTrendAnalyzer/
 
 ### 3.1 5대 홈쇼핑 모바일 공개 편성표 어댑터 (`Infrastructure/Scrapers/`)
 - **공통 추상 클래스**: `BaseChannelScraper`
-  - 핵심 메서드: `async def fetch_schedule(self, start_date: date, end_date: date) -> List[ScheduleItem]`
-  - `aiohttp.ClientSession` 기반 경량 HTTP/JSON 요청 (`fetch_text`, `fetch_json`, `X-Requested-With: XMLHttpRequest` 헤더 포함), 타임아웃(기본 15초), 모바일 User-Agent 로테이션, 건강기능식품 키워드/카테고리 필터링 및 `ScraperParseException` 예외 전파.
+  - 메서드: `fetch_schedule`, `fetch_text`, `fetch_post_text`, `fetch_json`
+  - `aiohttp.ClientSession` 기반 경량 HTTP/JSON/POST 요청, 타임아웃(기본 15초), 모바일 User-Agent 로테이션, 건기식 키워드/카테고리 필터링 및 `ScraperParseException` 전파.
 
-| 채널명 | 어댑터 클래스 | 수집 구간 | 대상 모바일 JSON / AJAX 엔드포인트 (우선순위 순) |
-| :--- | :--- | :--- | :--- |
-| **GS SHOP** | `GsShopScraper` | `D+0 ~ D+6` | 1. `https://m.gsshop.com/shop/tv/tvScheduleAjax.gs` (`searchDate=YYYYMMDD`)<br>2. `https://m.gsshop.com/api/shop/tv/tvScheduleList.gs`<br>3. `https://m.gsshop.com/shop/tv/tvScheduleDetail.gs` |
-| **CJ온스타일** | `CjOnstyleScraper` | `D+0 ~ D+6` | 1. `https://display.cjonstyle.com/c/rest/tv/tvSchedule` (`bdDt=YYYYMMDD`)<br>2. `https://display.cjonstyle.com/p/tv/tvSchedule` |
-| **NS홈쇼핑** | `NsMallScraper` | `D+0 ~ D+3` | 1. `https://m.nsmall.com/tv/schedule/getTvScheduleList` (`selectDay=YYYYMMDD`)<br>2. `https://api.nsmall.com/api/v1/display/schedule/tv`<br>3. `https://m.nsmall.com/NSAjaxTVSchedule` |
-| **롯데홈쇼핑** | `LotteImallScraper` | `D+0 ~ D+3` | 1. `https://m.lotteimall.com/display/viewTvSchedule.lotte` (`bd_date=YYYYMMDD`)<br>2. `https://m.lotteimall.com/display/selectTvScheduleListAjax.lotte`<br>3. `https://www.lotteimall.com/display/selectTvScheduleListAjax.lotte` |
-| **현대홈쇼핑** | `HmallScraper` | `D+0 ~ D+3` | 1. `https://www.hmall.com/p/bmc/selectTvSchedule.do` (`brodDt=YYYYMMDD`)<br>2. `https://m.hmall.com/p/bmc/selectTvSchedule.do`<br>3. `https://www.hmall.com/p/bmc/brodPordList.do` |
+| 채널명 | 어댑터 클래스 | 수집 구간 | 요청 메서드 / 엔드포인트 / 파라미터 규격 | 파싱 방식 |
+| :--- | :--- | :--- | :--- | :--- |
+| **GS SHOP** | `GsShopScraper` | `D+0 ~ D+6` | **POST** `https://m.gsshop.com/shop/tv/tvScheduleAjax.gs`<br>- Form Data: `selectDate=YYYYMMDD`, `ch=live`<br>- Headers: `X-Requested-With: XMLHttpRequest`, `Referer: https://m.gsshop.com/shop/tv/tvScheduleMain.gs` | JSON 객체 및 HTML 조각(BeautifulSoup) 듀얼 파싱 |
+| **CJ온스타일** | `CjOnstyleScraper` | `D+0 ~ D+6` | **GET** `https://display.cjonstyle.com/c/rest/tv/tvSchedule`<br>- Params: `bdDt=YYYYMMDD` | JSON 딕셔너리 구조 추출 |
+| **NS홈쇼핑** | `NsMallScraper` | `D+0 ~ D+3` | **GET** `https://m.nsmall.com/tv/schedule/getTvScheduleList`<br>- Params: `selectDay=YYYYMMDD&cnnlCd=TV`<br>- Headers: `Accept: application/json, text/plain, */*`, `Referer: https://m.nsmall.com/tv/schedule` | REST JSON 우선 파싱 및 HTML DOM(`.product-item` 등) 폴백 파싱 |
+| **롯데홈쇼핑** | `LotteImallScraper` | `D+0 ~ D+3` | **POST** `https://m.lotteimall.com/display/selectTvScheduleListAjax.lotte`<br>- Form Data: `bd_date=YYYYMMDD&chnl_gb=01`<br>- Headers: `X-Requested-With: XMLHttpRequest`, `Referer: https://m.lotteimall.com/display/viewTvSchedule.lotte` | JSON 응답 및 HTML 마크업(BeautifulSoup) 듀얼 파싱 |
+| **현대홈쇼핑** | `HmallScraper` | `D+0 ~ D+3` | **GET/POST** `https://www.hmall.com/p/bmc/selectTvSchedule.do`<br>- Params: `brodDt=YYYYMMDD&broadDt=YYYYMMDD&brodGb=01` | JSON 키(`slitmNm`, `brodTitl`, `brodStrtDtm`) 및 HTML DOM 듀얼 파싱 |
 
-### 3.2 Google Gemini API (`Infrastructure/AI/GeminiClient.py`)
-- **SDK 및 모델**: `google-genai` 패키지 / 기본 `gemini-flash-latest` (폴백 모델: `gemini-2.0-flash`, `gemini-1.5-flash`)
-- **주요 기능**:
-  1. `analyze_product_name(product_name)`: 상품명에서 `브랜드|원료` 포맷으로 핵심 성분과 브랜드명 추출 (실패 시 `미분류|미분류` 반환)
-  2. `generate_daily_report(stats_summary_text, previous_report_text)`: 이전 분석 맥락(실패 문구 오염 제외)과 신규 데이터 요약을 비교하여 변화 추이, 소싱 권고, 상위 5개 성분의 '성분 인텔리전스(추천 조합 성분, 기대 효과, 마케팅 소구점 3가지)' 리포트 생성
+### 3.2 Google Gemini API 리포트 포맷 (`Infrastructure/AI/GeminiClient.py`)
+- **SDK 및 모델**: `google-genai` 패키지 / 기본 `gemini-flash-latest` (폴백: `gemini-2.0-flash`, `gemini-1.5-flash`)
+- **전략 리포트 출력 규격**:
+  ```markdown
+  # 건강기능식품 시장 데이터 분석 리포트
 
-### 3.3 Telegram Bot API 및 메시지 포맷 (`Application/Service/NotificationService.py`)
-- **엔드포인트**: `POST https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage`
-- **메시지 출력 규격**:
-  ```text
-  [📡 채널별 편성표 수집 현황]
-  • GS SHOP: 정상 수집 (38건)
-  • CJ온스타일: 정상 수집 (25건)
-  • NS홈쇼핑: 정상 수집 (42건)
-  • 롯데홈쇼핑: ⚠️ 실패 (연속 실패 3일 / Error: SelectorNotFound)
-  • 현대홈쇼핑: 정상 수집 (19건)
+  1. **[트렌드 제목 및 전략 요약]**
+     * **데이터 트렌드**: [상품명, Power Score, 방송 횟수, 패키지 구성(3/6/12/18개월 등) 분석]
+     * **소싱 전략**: [용량 패키징, 제형 기술, 프로모션 할인율 대응 전략]
+  ... (상위 5개 트렌드)
 
-  (기존 주간 성분 랭킹 및 Gemini 분석 리포트 내용)
+  ---
+
+  ### 오늘의 성분 인텔리전스
+
+  📍 **[원료 1] + [원료 2]**
+  - 🧬 기대 효과: [상호작용 메커니즘 및 복합 케어 시너지 요약]
+  - 📢 마케팅 소구점:
+    * (타깃 연령층 및 구매 트리거)
+    * (시장 차별점 및 제형 기술/원료 희소성 강조)
+    * (섭취 편의성 및 패키지 구성 전략)
+  ... (핵심 시너지 성분 5종)
   ```
+
+### 3.3 Telegram Bot API (`Application/Service/NotificationService.py`)
+- **엔드포인트**: `POST https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage`
+- **메시지 구조**: `[📡 채널별 편성표 수집 현황]` 헤더 + Gemini 전략 리포트 본문 결합 발송.
 
 ---
 
@@ -127,53 +135,25 @@ HsMoaTrendAnalyzer/
 
 ### 4.1 SQLite 데이터베이스 (`outputs/crawling_history.db`)
 - **관리 클래스**: `SqliteRepository`
+- **테이블 1**: `crawling_history` (`id`, `target_date`, `status`, `items_count`, `crawled_at`)
+- **테이블 2**: `channel_health_history` (`channel_name`, `last_status`, `consecutive_failures`, `last_error_message`, `last_updated_at`)
 
-#### (1) `crawling_history` 테이블 (인덱스: `idx_target_date ON crawling_history(target_date)`)
-| 컬럼명 | 데이터 타입 | 제약 조건 | 설명 |
-| :--- | :--- | :--- | :--- |
-| `id` | `INTEGER` | `PRIMARY KEY AUTOINCREMENT` | 고유 식별자 |
-| `target_date` | `TEXT` | `UNIQUE NOT NULL` | 수집 대상 방송 일자 (`YYYY-MM-DD`) |
-| `status` | `TEXT` | `NOT NULL` | 수집 상태 (`SUCCESS`, `NO_DATA`, `FAILED`) |
-| `items_count` | `INTEGER` | `DEFAULT 0` | 수집된 건강식품 편성 아이템 수 |
-| `crawled_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | 수집 수행 일시 (`YYYY-MM-DD HH:MM:SS`) |
+### 4.2 도메인 모델 및 4대 저장소 (`outputs/`)
+1. `outputs/crawling_history.db`: 일별 수집 상태 및 채널별 헬스체크 히스토리
+2. `outputs/7day_forecast_sync.xlsx`: D+0 ~ D+6 기간 슬라이딩 윈도우 동기화 엑셀 (`sync_key`: `{date}_{time}_{channel}`)
+3. `outputs/건기식 - statistics.xlsx`: 원료별 일일 누적 통계 엑셀 (`날짜`, `원료명`, `방송 횟수`, `Power Score`, `Weighted Count`, `참여 브랜드 리스트`)
+4. `outputs/last_ai_report.txt` & `outputs/ai_reports/report_YYYYMMDD.txt`: 전략 리포트 텍스트 백업
 
-#### (2) `channel_health_history` 테이블 (채널별 헬스체크 및 연속 실패 추적)
-| 컬럼명 | 데이터 타입 | 제약 조건 | 설명 |
-| :--- | :--- | :--- | :--- |
-| `channel_name` | `TEXT` | `PRIMARY KEY` | 홈쇼핑 채널명 (`GS SHOP`, `CJ온스타일`, `NS홈쇼핑`, `롯데홈쇼핑`, `현대홈쇼핑`) |
-| `last_status` | `TEXT` | `NOT NULL` | 최근 수집 상태 (`SUCCESS` / `FAILURE`) |
-| `consecutive_failures` | `INTEGER` | `DEFAULT 0` | 연속 실패 일수 (성공 시 `0` 초기화, 실패 시 `+1` 누적) |
-| `last_error_message` | `TEXT` | `DEFAULT ''` | 최근 발생 예외/오류 메시지 (예: `SelectorNotFound`) |
-| `last_updated_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | 상태 최종 갱신 일시 (`YYYY-MM-DD HH:MM:SS`) |
-
-### 4.2 도메인 모델 및 Excel/파일 저장소 (`outputs/`)
-1. **도메인 모델 (`ScheduleItem` in `Domain/Models/Schedule.py`)**
-   - 필드: `broadcast_date`, `broadcast_time`, `channel`, `category`, `product_name`, `price`, `link_url`, `estimated_sales`, `estimated_revenue`
-2. **월별 편성표 (`outputs/홈쇼핑모아 편성표 - {MM}월.xlsx`)**
-   - 시트명: `{MM}-{DD}`
-   - 컬럼: `방송날짜`, `방송시간`, `채널`, `카테고리`, `상품명`, `가격`, `링크URL`, `추정판매량`, `추정매출액`
-3. **7일 슬라이딩 윈도우 동기화 파일 (`outputs/7day_forecast_sync.xlsx`)**
-   - Upsert 고유키(`sync_key`): `{broadcast_date}_{broadcast_time}_{channel}`
-   - 컬럼: `broadcast_date`, `broadcast_time`, `channel`, `product_name`, `category`, `price`, `power_score`, `sync_key`
-4. **원료별 일일 누적 통계 파일 (`outputs/건기식 - statistics.xlsx`)**
-   - 컬럼: `날짜`, `원료명`, `방송 횟수`, `Power Score`, `Weighted Count`, `참여 브랜드 리스트`
-5. **AI 리포트 텍스트 아카이브**
-   - `outputs/last_ai_report.txt`: 다음 실행 시 연속성(Context) 부여를 위한 직전 리포트 본문
-   - `outputs/ai_reports/report_{YYYYMMDD}.txt`: 일자별 AI 리포트 히스토리 보관본
-
-### 4.3 환경 변수 및 인프라 설정 (`.env` & Docker)
-| 환경 변수명 | 필수 여부 | 기본값 | 설명 |
-| :--- | :--- | :--- | :--- |
-| `GEMINI_API_KEY` | 필수 | - | Google Gemini API 인증 키 |
-| `TELEGRAM_BOT_TOKEN` | 필수 | - | 리포트 발송용 텔레그램 봇 토큰 |
-| `TELEGRAM_CHAT_ID` | 필수 | - | 리포트 수신 대상 텔레그램 채팅방 ID |
-| `OUTPUT_DIR` | 선택 | `./outputs` | 결과 파일 및 DB 저장 디렉토리 경로 |
-| `CRAWLER_SCHEDULE_TIME` | 선택 | `07:00` | Docker 컨테이너(`entrypoint.sh`) 일일 자동 실행 시각 (`HH:MM`, KST 기준) |
-| `RUN_ON_STARTUP` | 선택 | `false` | Docker 컨테이너 시작 시 즉시 1회 분석 실행 여부 (`true` / `false`) |
+### 4.3 환경 변수 (`.env`)
+- `GEMINI_API_KEY`: Google Gemini API 인증 키
+- `TELEGRAM_BOT_TOKEN`: 텔레그램 봇 토큰
+- `TELEGRAM_CHAT_ID`: 텔레그램 채팅방 ID
+- `OUTPUT_DIR`: 결과 파일 저장 디렉토리 (기본 `./outputs`)
 
 ---
 
 ## 5. 최근 변경 이력
+- `[2026-11-06] GS SHOP(POST AJAX), NS홈쇼핑(REST API+HTML폴백), 롯데홈쇼핑(POST AJAX) 스크래퍼 정밀 정상화, 4대 저장소 무결 영속화(건기식 통계 엑셀 연동), Gemini AI 전략 리포트 심층 포맷 복원`
 - `[2026-11-03] 4개 홈쇼핑 스크래퍼(롯데, GS, NS, 현대) 모바일 JSON/AJAX 엔드포인트 교체 및 부분 수집 시 Gemini 리포트 생성 방어/폴백 로직 강화`
 - `[2026-11-01] DataHub 크롤러 제거 및 5대 홈쇼핑 비로그인 병렬 어댑터(Infrastructure/Scrapers) 구축, 채널별 헬스체크 DB(channel_health_history) 및 텔레그램 상태 리포트 연동, D+7 슬라이딩 윈도우 전환`
 - `[2026-11-01] 프로젝트 전체 구조 분석 및 초기 PROJECT_SPEC.md 명세서 작성`
