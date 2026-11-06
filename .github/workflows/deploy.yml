@@ -19,4 +19,4 @@ jobs:
         working-directory: C:\Project\Python_HQ\HsMoaTrendAnalyzer
         shell: powershell
         run: |
-          docker compose up -d --build --force-recreate
+          docker compose up -d --build
