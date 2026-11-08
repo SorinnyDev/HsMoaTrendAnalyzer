@@ -1,16 +1,18 @@
 import os
+import re
 import time
 import logging
 from google import genai
 from google.genai import types
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 
 logger = logging.getLogger(__name__)
 
 class GeminiClient:
     """
     Infrastructure layer for interacting with Gemini AI.
-    Handles product analysis and business report generation with retry and model fallback.
+    Handles product analysis (with circuit-breaker & rule-based ingredient/brand extraction)
+    and business report generation with retry and model fallback.
     """
     def __init__(self) -> None:
         api_key = os.getenv("GEMINI_API_KEY")
@@ -18,17 +20,124 @@ class GeminiClient:
             logger.error("GEMINI_API_KEY is not set in environment variables.")
         
         self.client = genai.Client(api_key=api_key)
-        self.model_name = "gemini-flash-latest"
+        self.model_name = "gemini-2.5-flash"
         self.fallback_models: List[str] = [
+            "gemini-2.5-flash",
             "gemini-flash-latest",
-            "gemini-2.0-flash",
-            "gemini-1.5-flash"
+            "gemini-2.0-flash"
         ]
+        self.quota_exhausted = False
+        self.brand_patterns: List[str] = [
+            "종근당건강", "여에스더", "에스더포뮬러", "뉴트리코어", "뉴트리원", "정관장",
+            "동국제약", "대웅제약", "일양약품", "유한양행", "안국건강", "경남제약",
+            "광동", "보령", "한미양행", "프롬바이오", "덴프스", "에이스바이옴",
+            "비에날씬", "락토핏", "오라틱스", "골드카무트", "골드파로", "허브이오",
+            "주영엔에스", "뼈엔", "관절엔", "닥터린", "닥터슈퍼칸", "에버콜라겐",
+            "센트룸", "오쏘몰", "솔가", "세노비스", "듀오락", "드시모네", "셀렉스",
+            "하이뮨", "콜롬비아나", "홀베리", "이알하나"
+        ]
+        self.ingredient_rules: List[Tuple[str, str]] = [
+            ("비에날씬", "다이어트 유산균(BNR17)"),
+            ("비에날퀸", "다이어트 유산균(BNR17)"),
+            ("비피더스", "다이어트 유산균(비피더스B3)"),
+            ("오라틱스", "구강유산균(CMU)"),
+            ("잇몸유산균", "구강유산균(CMU)"),
+            ("락토핏", "프로바이오틱스(유산균)"),
+            ("유산균", "프로바이오틱스(유산균)"),
+            ("프로바이오틱스", "프로바이오틱스(유산균)"),
+            ("콘드로이친", "콘드로이친"),
+            ("난각막", "난각막(NEM/DEM)"),
+            ("엠비피", "유단백추출물(MBP)"),
+            ("MBP", "유단백추출물(MBP)"),
+            ("보스웰리아", "보스웰리아"),
+            ("글루코사민", "글루코사민"),
+            ("엠에스엠", "MSM(식이유황)"),
+            ("MSM", "MSM(식이유황)"),
+            ("파로효소", "파로발효효소"),
+            ("파로 효소", "파로발효효소"),
+            ("카무트", "카무트브랜드밀효소"),
+            ("효소", "곡물발효효소"),
+            ("포스파티딜세린", "포스파티딜세린(PS)"),
+            ("닥터PS", "포스파티딜세린(PS)"),
+            ("루테인지아잔틴", "루테인지아잔틴"),
+            ("아스타잔틴", "루테인지아잔틴·아스타잔틴"),
+            ("루테인", "루테인지아잔틴"),
+            ("알티지 오메가", "초임계 rTG 오메가3"),
+            ("알티지오메가", "초임계 rTG 오메가3"),
+            ("오메가3", "rTG 오메가3"),
+            ("오메가", "rTG 오메가3"),
+            ("코엔자임", "코엔자임Q10"),
+            ("코큐텐", "코엔자임Q10"),
+            ("리포좀 비타민", "리포좀 비타민C"),
+            ("멀티비타민", "멀티비타민·미네랄"),
+            ("트루바이타민", "멀티비타민·미네랄"),
+            ("비타민", "비타민"),
+            ("콜라겐", "저분자 콜라겐 펩타이드"),
+            ("글루타치온", "리포좀 글루타치온"),
+            ("마그네슘", "마그네슘"),
+            ("칼슘", "칼슘·마그네슘·비타민D"),
+            ("알부민", "복합 알부민"),
+            ("단백질", "단백질(프로틴)"),
+            ("하이뮨", "산양유 단백질"),
+            ("흑염소", "흑염소진액"),
+            ("홍삼", "홍삼"),
+            ("녹용", "녹용·침향"),
+            ("침향", "녹용·침향"),
+            ("밀크씨슬", "밀크씨슬(실리마린)"),
+            ("쏘팔메토", "쏘팔메토·옥타코사놀"),
+            ("갱년기", "갱년기 여성건강(회화나무/연백피/ERr731)"),
+            ("이알하나", "갱년기 여성건강(ERr731)"),
+            ("ERr731", "갱년기 여성건강(ERr731)"),
+            ("다이어트", "체지방 감소 다이어트 소재"),
+            ("레몬즙", "유기농 레몬즙"),
+            ("올리브오일", "엑스트라버진 올리브오일")
+        ]
+
+    def _extract_rule_based_product_info(self, product_name: str) -> Dict[str, str]:
+        """
+        Deterministically extracts brand and core ingredient from product_name
+        when Gemini API is unavailable or rate-limited.
+        """
+        result = {}
+        result["brand"] = "홈쇼핑 기획"
+        result["ingredient"] = "복합 건강기능식품"
+
+        bracket_match = re.search(r"\[([^\]]+)\]", product_name)
+        if (bracket_match is not None):
+            candidate_brand = bracket_match.group(1).strip()
+            if (
+                "방송" not in candidate_brand
+                and "세일" not in candidate_brand
+                and "특가" not in candidate_brand
+                and "혜택" not in candidate_brand
+                and "단독" not in candidate_brand
+                and "더블" not in candidate_brand
+                and "마지막" not in candidate_brand
+                and len(candidate_brand) <= 12
+            ):
+                result["brand"] = candidate_brand
+
+        for (known_brand) in self.brand_patterns:
+            if (known_brand in product_name):
+                result["brand"] = known_brand
+                break
+
+        for (keyword, mapped_ingredient) in self.ingredient_rules:
+            if (keyword in product_name):
+                result["ingredient"] = mapped_ingredient
+                break
+
+        return result
 
     def analyze_product_name(self, product_name: str) -> Dict[str, str]:
         """
         Extracts brand and core ingredient from a product name.
+        Uses rule-based fallback immediately if API quota/credits are exhausted.
         """
+        fallback_info = self._extract_rule_based_product_info(product_name)
+        if (self.quota_exhausted):
+            return fallback_info
+
         prompt = f"""
         당신은 대한민국 건강기능식품 시장의 전문 분석가입니다.
         아래 상품명에서 '핵심 성분(원료)'과 '브랜드명'을 추출하십시오.
@@ -38,8 +147,8 @@ class GeminiClient:
         """
         
         result = {}
-        result["brand"] = "미분류"
-        result["ingredient"] = "미분류"
+        result["brand"] = fallback_info["brand"]
+        result["ingredient"] = fallback_info["ingredient"]
         
         try:
             response = self.client.models.generate_content(
@@ -54,7 +163,13 @@ class GeminiClient:
                         result["brand"] = parts[0].strip()
                         result["ingredient"] = parts[1].strip()
         except Exception as e:
-            logger.error(f"Error in analysis: {str(e)}")
+            err_str = str(e)
+            if ("402" in err_str or "429" in err_str or "RESOURCE_EXHAUSTED" in err_str):
+                if (not self.quota_exhausted):
+                    logger.warning(f"Gemini API quota/billing exhausted ({err_str}). Switching product analysis to rule-based engine.")
+                self.quota_exhausted = True
+            else:
+                logger.error(f"Error in analysis: {err_str}")
             
         return result
 
@@ -69,7 +184,13 @@ class GeminiClient:
             return "현재 분석 가능한 건강기능식품 편성 요약 데이터가 없습니다."
 
         context_section = ""
-        if (previous_report_text and "리포트 생성에 실패하였습니다" not in previous_report_text and "Fallback" not in previous_report_text):
+        if (
+            previous_report_text
+            and "리포트 생성에 실패하였습니다" not in previous_report_text
+            and "Fallback" not in previous_report_text
+            and "축약된 요약 리포트" not in previous_report_text
+            and "수집 요약 리포트" not in previous_report_text
+        ):
             trimmed_prev = previous_report_text[:3000]
             context_section = f"\n[이전 분석 맥락]:\n{trimmed_prev}\n"
 
@@ -134,7 +255,7 @@ class GeminiClient:
         
         final_report = "리포트 생성에 실패하였습니다."
         
-        for candidate_model in self.fallback_models:
+        for (candidate_model) in self.fallback_models:
             try:
                 response = self.client.models.generate_content(
                     model=candidate_model,
@@ -145,7 +266,7 @@ class GeminiClient:
                     return final_report
             except Exception as e:
                 logger.error(f"Error generating AI report with model '{candidate_model}': {str(e)}")
-                time.sleep(1)
+                time.sleep(0.5)
                 continue
             
         return final_report

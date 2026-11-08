@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import List, Dict, Tuple
 import asyncio
+import random
 import logging
 from Domain.Models.Schedule import ScheduleItem
 from Infrastructure.Scrapers.BaseChannelScraper import BaseChannelScraper
@@ -42,14 +43,31 @@ class MultiChannelAggregator:
             default_scrapers.append(HmallScraper())
             self.scrapers = default_scrapers
 
+    async def _run_with_stagger(
+        self,
+        scraper: BaseChannelScraper,
+        start_date: date,
+        end_date: date,
+        stagger_delay: float
+    ) -> List[ScheduleItem]:
+        """
+        Adds a small randomized startup offset before launching a channel scraper
+        so all 5 scrapers do not fire at the exact same millisecond.
+        """
+        if (stagger_delay > 0.0):
+            await asyncio.sleep(stagger_delay)
+        return await scraper.fetch_schedule(start_date, end_date)
+
     async def collect_all(self, start_date: date, end_date: date) -> Tuple[List[ScheduleItem], List[ChannelCrawlResult]]:
         """
-        Concurrently fetches schedules from all 5 channel scrapers.
+        Concurrently fetches schedules from all 5 channel scrapers with staggered startup jitter.
         Even if one or more channels fail, normal channels' items are aggregated without interruption.
         """
         tasks = []
-        for scraper in self.scrapers:
-            tasks.append(scraper.fetch_schedule(start_date, end_date))
+        for (idx) in range(len(self.scrapers)):
+            scraper = self.scrapers[idx]
+            stagger_sec = round(idx * random.uniform(0.25, 0.55), 2)
+            tasks.append(self._run_with_stagger(scraper, start_date, end_date, stagger_sec))
 
         logger.info(f"Starting parallel schedule collection across {len(self.scrapers)} channels ({start_date} ~ {end_date})...")
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)

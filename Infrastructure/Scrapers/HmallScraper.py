@@ -14,15 +14,13 @@ logger = logging.getLogger(__name__)
 class HmallScraper(BaseChannelScraper):
     """
     현대홈쇼핑 mobile public schedule scraper (D+0 ~ D+3).
-    Targets Hmall mobile TV schedule JSON/AJAX endpoints (/p/bmc/selectTvSchedule.do, etc.).
+    Targets Hmall mobile TV schedule REST API (/api/hf/dp/v1/main-tv-new/tv-list).
     """
 
     def __init__(self) -> None:
         super().__init__(channel_name="현대홈쇼핑", max_days_ahead=3, timeout_seconds=15)
-        self.select_schedule_url = "https://www.hmall.com/p/bmc/selectTvSchedule.do"
-        self.mobile_schedule_url = "https://m.hmall.com/p/bmc/selectTvSchedule.do"
-        self.brod_list_url = "https://www.hmall.com/p/bmc/brodPordList.do"
-        self.tv_schedule_page_url = "https://www.hmall.com/p/dpl/TVSchedule"
+        self.tv_list_api_url = "https://www.hmall.com/api/hf/dp/v1/main-tv-new/tv-list"
+        self.tv_schedule_page_url = "https://www.hmall.com/md/dpl/index?mainDispSeq=2&brodType=all"
 
     async def fetch_schedule(self, start_date: date, end_date: date) -> List[ScheduleItem]:
         """
@@ -35,18 +33,19 @@ class HmallScraper(BaseChannelScraper):
         if (target_end_date > max_allowed_date):
             target_end_date = max_allowed_date
 
-        async with aiohttp.ClientSession() as session:
+        async with self.create_stealth_session() as session:
+            await self.warm_up_session(session, self.tv_schedule_page_url)
             current_date = start_date
             while (current_date <= target_end_date):
                 date_str_compact = current_date.strftime("%Y%m%d")
                 date_str_iso = current_date.strftime("%Y-%m-%d")
 
                 daily_items = await self._fetch_single_date(session, date_str_compact, date_str_iso)
-                for item in daily_items:
+                for (item) in daily_items:
                     collected_items.append(item)
 
                 current_date = current_date + timedelta(days=1)
-                await asyncio.sleep(0.3)
+                await self.sleep_with_jitter(0.65, 1.45)
 
         return collected_items
 
@@ -57,46 +56,59 @@ class HmallScraper(BaseChannelScraper):
         date_str_iso: str
     ) -> List[ScheduleItem]:
         """
-        Queries Hmall TV schedule endpoints (/p/bmc/selectTvSchedule.do, etc.) and parses JSON/HTML.
+        Queries Hmall TV schedule REST API (/api/hf/dp/v1/main-tv-new/tv-list) across time pages 1..6.
         """
-        params = {}
-        params["brodDt"] = date_str_compact
-        params["searchDate"] = date_str_compact
-        params["broadDt"] = date_str_compact
-        params["brodGb"] = "01"
-
         extra_headers = {}
-        extra_headers["Referer"] = "https://www.hmall.com/p/dpl/TVSchedule"
-        extra_headers["X-Requested-With"] = "XMLHttpRequest"
-        extra_headers["Accept"] = "application/json, text/javascript, text/html, */*; q=0.01"
+        extra_headers["Referer"] = self.tv_schedule_page_url
+        extra_headers["Accept"] = "application/json, text/plain, */*"
 
-        endpoints = []
-        endpoints.append(self.select_schedule_url)
-        endpoints.append(self.mobile_schedule_url)
-        endpoints.append(self.brod_list_url)
-        endpoints.append(self.tv_schedule_page_url)
-
+        day_items: List[ScheduleItem] = []
+        seen_keys: Dict[str, bool] = {}
+        successful_pages = 0
         last_error: Exception = ScraperParseException("HmallEndpointFailed")
 
-        for endpoint_url in endpoints:
-            try:
-                raw_text = await self.fetch_text(
-                    session,
-                    endpoint_url,
-                    params=params,
-                    extra_headers=extra_headers
-                )
-                items = self._parse_response(raw_text, date_str_iso)
-                return items
-            except Exception as err:
-                last_error = err
-                continue
+        query_modes = []
+        query_modes.append("001,002")
+        query_modes.append("")
 
-        raise last_error
+        for (category_filter) in query_modes:
+            for (page_no) in range(1, 7):
+                params = {}
+                params["brodDt"] = date_str_compact
+                params["brodPrrgPage"] = str(page_no)
+                if (len(category_filter) > 0):
+                    params["categoryList"] = category_filter
+
+                try:
+                    raw_text = await self.fetch_text(
+                        session,
+                        self.tv_list_api_url,
+                        params=params,
+                        extra_headers=extra_headers
+                    )
+                    successful_pages = successful_pages + 1
+                    page_items = self._parse_response(raw_text, date_str_iso)
+                    for (item) in page_items:
+                        dedup_key = f"{item.broadcast_date}_{item.broadcast_time}_{item.product_name}"
+                        if (dedup_key not in seen_keys):
+                            seen_keys[dedup_key] = True
+                            day_items.append(item)
+                    await self.sleep_with_jitter(0.18, 0.45)
+                except Exception as err:
+                    last_error = err
+                    continue
+
+            if (len(day_items) > 0):
+                break
+
+        if (successful_pages == 0):
+            raise last_error
+
+        return day_items
 
     def _parse_response(self, raw_text: str, date_str_iso: str) -> List[ScheduleItem]:
         """
-        Parses 현대홈쇼핑 schedule response (JSON payload, embedded script JSON, or HTML DOM).
+        Parses 현대홈쇼핑 schedule response (JSON payload from /api/hf/dp/v1/main-tv-new/tv-list).
         """
         if (not raw_text or len(raw_text.strip()) == 0):
             raise ScraperParseException("EmptyResponse")
@@ -106,32 +118,10 @@ class HmallScraper(BaseChannelScraper):
             try:
                 data = json.loads(stripped)
                 return self._extract_from_json(data, date_str_iso)
+            except ScraperParseException:
+                raise
             except Exception as e:
                 raise ScraperParseException(f"JSONParseError: {str(e)}") from e
-
-        # Check embedded JSON inside script blocks
-        json_blocks = re.findall(
-            r"(?:__NEXT_DATA__|tvScheduleList|brodList|scheduleList|brodPordList)\s*[=:]\s*(\{.*?\}|\[.*?\])\s*[;<\n]",
-            raw_text,
-            re.DOTALL
-        )
-        for block_str in json_blocks:
-            try:
-                parsed_json = json.loads(block_str)
-                return self._extract_from_json(parsed_json, date_str_iso)
-            except Exception:
-                continue
-
-        inline_objects = re.findall(r"\{[^{}]*?(?:\"slitmNm\"|\"brodTitl\"|\"slitmCd\"|\"brodStrtDtm\")[^{}]*?\}", raw_text)
-        if (len(inline_objects) > 0):
-            parsed_list = []
-            for obj_str in inline_objects:
-                try:
-                    parsed_list.append(json.loads(obj_str))
-                except Exception:
-                    continue
-            if (len(parsed_list) > 0):
-                return self._extract_from_json(parsed_list, date_str_iso)
 
         soup = BeautifulSoup(raw_text, "html.parser")
         script_node = soup.select_one("script#__NEXT_DATA__")
@@ -142,101 +132,55 @@ class HmallScraper(BaseChannelScraper):
             except Exception as e:
                 raise ScraperParseException(f"NextDataParseError: {str(e)}") from e
 
-        product_elements = soup.select(
-            "li.schedule-item, div.schedule-item, li.prd-item, div.brod-item, "
-            "ul.brod-list > li, div.onair-item, li[data-slitm-cd]"
-        )
-
-        if (len(product_elements) == 0):
-            raise ScraperParseException("SelectorNotFound")
-
-        items: List[ScheduleItem] = []
-        current_time_str = "00:00"
-
-        for elem in product_elements:
-            time_node = elem.select_one(".time, .brod-time, .txt-time, span.time, strong.time")
-            if (time_node is not None):
-                time_match = re.search(r"(\d{1,2}:\d{2})", time_node.get_text(strip=True))
-                if (time_match is not None):
-                    current_time_str = time_match.group(1)
-
-            name_node = elem.select_one(".prd-name, .slitmNm, .tit, .title, p.name, .item-title")
-            if (name_node is None):
-                continue
-
-            product_name = name_node.get_text(strip=True)
-            if (not product_name):
-                continue
-
-            cat_node = elem.select_one(".cate, .category, .sect-name")
-            category_text = "건강식품"
-            if (cat_node is not None):
-                category_text = cat_node.get_text(strip=True)
-
-            if (not self.is_health_food_item(product_name, category_text)):
-                continue
-
-            price_str = ""
-            price_node = elem.select_one(".price, .sellPrc, .num, strong.price")
-            if (price_node is not None):
-                digits = re.sub(r"[^\d]", "", price_node.get_text(strip=True))
-                if (digits):
-                    price_str = digits
-
-            link_url = ""
-            link_node = elem.select_one("a[href]")
-            if (link_node is not None):
-                href_val = str(link_node.get("href", ""))
-                if (href_val.startswith("http")):
-                    link_url = href_val
-                elif (href_val.startswith("/")):
-                    link_url = f"https://www.hmall.com{href_val}"
-
-            schedule_item = ScheduleItem(
-                broadcast_date=date_str_iso,
-                broadcast_time=current_time_str,
-                channel=self.channel_name,
-                category="건강식품",
-                product_name=product_name,
-                price=price_str,
-                link_url=link_url
-            )
-            items.append(schedule_item)
-
-        return items
+        raise ScraperParseException("SelectorNotFound")
 
     def _extract_from_json(self, data: Any, date_str_iso: str) -> List[ScheduleItem]:
         """
-        Extracts ScheduleItem objects from 현대홈쇼핑 JSON structure.
-        Maps product name (slitmNm / brodTitl / itemNm) and broadcast time (brodStrtDtm / brodTime).
+        Extracts ScheduleItem objects from 현대홈쇼핑 JSON structure (respData.broadItemList & withItemList).
         """
         results: List[ScheduleItem] = []
         candidates: List[Dict[str, Any]] = []
 
-        def _walk(node: Any) -> None:
-            if (isinstance(node, dict)):
-                if (
-                    "slitmNm" in node
-                    or "brodTitl" in node
-                    or "itemNm" in node
-                    or "prdNm" in node
-                    or "goodsNm" in node
-                    or "dispTitl" in node
-                ):
-                    candidates.append(node)
-                for val in node.values():
-                    _walk(val)
-            elif (isinstance(node, list)):
-                for sub in node:
-                    _walk(sub)
+        if (isinstance(data, dict)):
+            resp_data = data.get("respData")
+            if (isinstance(resp_data, dict)):
+                broad_list = resp_data.get("broadItemList")
+                if (isinstance(broad_list, list)):
+                    for (main_item) in broad_list:
+                        if (isinstance(main_item, dict)):
+                            candidates.append(main_item)
+                            with_items = main_item.get("withItemList")
+                            if (isinstance(with_items, list)):
+                                for (sub_item) in with_items:
+                                    if (isinstance(sub_item, dict)):
+                                        candidates.append(sub_item)
+                    if (len(broad_list) == 0):
+                        return results
 
-        _walk(data)
         if (len(candidates) == 0):
-            raise ScraperParseException("SelectorNotFound")
+            def _walk(node: Any) -> None:
+                if (isinstance(node, dict)):
+                    if (
+                        "slitmNm" in node
+                        or "brodTitl" in node
+                        or "itemNm" in node
+                        or "prdNm" in node
+                        or "goodsNm" in node
+                        or "dispTitl" in node
+                    ):
+                        candidates.append(node)
+                    for (val) in node.values():
+                        _walk(val)
+                elif (isinstance(node, list)):
+                    for (sub) in node:
+                        _walk(sub)
 
-        for item_dict in candidates:
+            _walk(data)
+
+        for (item_dict) in candidates:
             product_name = str(
                 item_dict.get("slitmNm")
+                or item_dict.get("convertedSlitmNm")
                 or item_dict.get("brodTitl")
                 or item_dict.get("dispTitl")
                 or item_dict.get("itemNm")
@@ -259,8 +203,16 @@ class HmallScraper(BaseChannelScraper):
             if (not self.is_health_food_item(product_name, category_text)):
                 continue
 
+            raw_brod_dt = str(item_dict.get("newBrodDt") or item_dict.get("brodDt") or "").strip()
+            item_date_iso = date_str_iso
+            if (len(raw_brod_dt) == 8 and raw_brod_dt.isdigit()):
+                item_date_iso = f"{raw_brod_dt[0:4]}-{raw_brod_dt[4:6]}-{raw_brod_dt[6:8]}"
+                if (item_date_iso != date_str_iso):
+                    continue
+
             raw_time = str(
                 item_dict.get("brodStrtDtm")
+                or item_dict.get("brodStrtDtmParam")
                 or item_dict.get("brodStrtTm")
                 or item_dict.get("brodTime")
                 or item_dict.get("startTime")
@@ -280,8 +232,8 @@ class HmallScraper(BaseChannelScraper):
                 time_str = "00:00"
 
             raw_price = str(
-                item_dict.get("sellPrc")
-                or item_dict.get("bbprc")
+                item_dict.get("bbprc")
+                or item_dict.get("sellPrc")
                 or item_dict.get("salePrice")
                 or item_dict.get("price")
                 or ""
@@ -291,10 +243,10 @@ class HmallScraper(BaseChannelScraper):
             slitm_cd = str(item_dict.get("slitmCd") or "")
             link_url = str(item_dict.get("linkUrl") or "")
             if (not link_url and slitm_cd):
-                link_url = f"https://www.hmall.com/p/pda/itemPtc.do?slitmCd={slitm_cd}"
+                link_url = f"https://www.hmall.com/md/pda/itemPtc?slitmCd={slitm_cd}"
 
             schedule_item = ScheduleItem(
-                broadcast_date=date_str_iso,
+                broadcast_date=item_date_iso,
                 broadcast_time=time_str,
                 channel=self.channel_name,
                 category="건강식품",

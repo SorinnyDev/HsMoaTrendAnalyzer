@@ -61,9 +61,36 @@ class NotificationService:
         else:
             return report_text
 
+    def _split_message_chunks(self, text: str, max_length: int = 3900) -> List[str]:
+        """
+        Splits a long report message into chunks under Telegram's 4096-character limit
+        on newline boundaries.
+        """
+        if (len(text) <= max_length):
+            return [text]
+
+        chunks: List[str] = []
+        current_lines: List[str] = []
+        current_len = 0
+
+        for (line) in text.split("\n"):
+            line_len = len(line) + 1
+            if (current_len + line_len > max_length and len(current_lines) > 0):
+                chunks.append("\n".join(current_lines))
+                current_lines = []
+                current_len = 0
+            current_lines.append(line)
+            current_len = current_len + line_len
+
+        if (len(current_lines) > 0):
+            chunks.append("\n".join(current_lines))
+
+        return chunks
+
     def send_report(self, report_text: str, health_results: Optional[List[ChannelCrawlResult]] = None) -> bool:
         """
         Sends the AI-generated report (with optional channel health check header) via Telegram Bot API.
+        Automatically splits messages exceeding 4096 characters into sequential chunks.
         """
         if (not self.token):
             return False
@@ -72,22 +99,25 @@ class NotificationService:
 
         api_url = f"{self.base_url}{self.token}/sendMessage"
         final_message = self.build_full_message(report_text, health_results)
-        
-        # Batch Assignment rule: Explicitly assign each key
-        payload = {}
-        payload["chat_id"] = self.chat_id
-        payload["text"] = final_message
-        
-        try:
-            response = requests.post(api_url, data=payload)
-            
-            if (response.status_code == 200):
-                logger.info("Telegram report sent successfully.")
-                return True
-            else:
-                logger.error(f"Telegram API error: {response.text}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Failed to send Telegram message: {str(e)}")
-            return False
+        message_chunks = self._split_message_chunks(final_message, max_length=3900)
+        all_sent = True
+
+        for (chunk_text) in message_chunks:
+            # Batch Assignment rule: Explicitly assign each key
+            payload = {}
+            payload["chat_id"] = self.chat_id
+            payload["text"] = chunk_text
+
+            try:
+                response = requests.post(api_url, data=payload)
+
+                if (response.status_code == 200):
+                    logger.info("Telegram report chunk sent successfully.")
+                else:
+                    logger.error(f"Telegram API error: {response.text}")
+                    all_sent = False
+            except Exception as e:
+                logger.error(f"Failed to send Telegram message: {str(e)}")
+                all_sent = False
+
+        return all_sent

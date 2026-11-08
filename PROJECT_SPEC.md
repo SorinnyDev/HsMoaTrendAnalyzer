@@ -34,12 +34,12 @@ HsMoaTrendAnalyzer/
 │           └── WindowService.py                 # 7일 슬라이딩 윈도우(D+0 ~ D+6, Today + 6일) 날짜 계산 및 과거 데이터 필터링
 └── Infrastructure/
     ├── Scrapers/                                # [Adapter Pattern] 5대 홈쇼핑 비로그인 모바일 편성표 스크래퍼
-    │   ├── BaseChannelScraper.py                # 추상 인터페이스 (fetch_schedule, fetch_text, fetch_post_text, 타임아웃, User-Agent 로테이션, 건기식 필터링)
-    │   ├── GsShopScraper.py                     # GS SHOP 모바일 POST AJAX 편성표 어댑터 (D+0 ~ D+6)
-    │   ├── CjOnstyleScraper.py                  # CJ온스타일 모바일 REST/JSON 편성표 어댑터 (D+0 ~ D+6)
-    │   ├── NsMallScraper.py                     # NS홈쇼핑 모바일 REST API + HTML 폴백 편성표 어댑터 (D+0 ~ D+3)
-    │   ├── LotteImallScraper.py                 # 롯데홈쇼핑 모바일 POST AJAX 편성표 어댑터 (D+0 ~ D+3)
-    │   ├── HmallScraper.py                      # 현대홈쇼핑 모바일 TV 편성표 JSON/AJAX 어댑터 (D+0 ~ D+3)
+    │   ├── BaseChannelScraper.py                # 추상 인터페이스 (fetch_schedule, 타임아웃, User-Agent 로테이션, 건기식 키워드 및 화장품 제외 필터링)
+    │   ├── GsShopScraper.py                     # GS SHOP 모바일 공개 편성표 HTML 어댑터 (/main/broadSchedule/{YYYYMMDD}, D+0 ~ D+6)
+    │   ├── CjOnstyleScraper.py                  # CJ온스타일 모바일 REST/JSON 편성표 어댑터 (bdStrDtm epoch ms 변환, D+0 ~ D+6)
+    │   ├── NsMallScraper.py                     # NS홈쇼핑 모바일 백엔드 REST JSON API 어댑터 (mapi.nsmall.com, D+0 ~ D+3)
+    │   ├── LotteImallScraper.py                 # 롯데홈쇼핑 모바일 JSON 편성표 어댑터 (scheduleLive.lotte / scheduleOne.lotte, D+0 ~ D+3)
+    │   ├── HmallScraper.py                      # 현대홈쇼핑 모바일 TV 편성표 REST JSON API 어댑터 (/api/hf/dp/v1/main-tv-new/tv-list, D+0 ~ D+3)
     │   └── MultiChannelAggregator.py            # asyncio.gather(..., return_exceptions=True) 기반 5개 채널 병렬 수집 조율기
     ├── AI/
     │   └── GeminiClient.py                      # Google GenAI (gemini-flash-latest + 모델 폴백) 전략 리포트 연동 클라이언트
@@ -90,19 +90,23 @@ HsMoaTrendAnalyzer/
 
 ### 3.1 5대 홈쇼핑 모바일 공개 편성표 어댑터 (`Infrastructure/Scrapers/`)
 - **공통 추상 클래스**: `BaseChannelScraper`
-  - 메서드: `fetch_schedule`, `fetch_text`, `fetch_post_text`, `fetch_json`
-  - `aiohttp.ClientSession` 기반 경량 HTTP/JSON/POST 요청, 타임아웃(기본 15초), 모바일 User-Agent 로테이션, 건기식 키워드/카테고리 필터링 및 `ScraperParseException` 전파.
+  - 메서드: `fetch_schedule`, `create_stealth_session`, `warm_up_session`, `sleep_with_jitter`, `fetch_text`, `fetch_post_text`, `fetch_json`, `is_health_food_item`
+  - **안티봇 스텔스(Stealth) 수집 프로토콜**:
+    1. **모바일 브라우저 핑거프린트 프로필 동기화**: iOS Safari / Android Chrome별 `User-Agent`, `Sec-Ch-Ua`, `Sec-Ch-Ua-Mobile`, `Sec-Ch-Ua-Platform`, `Sec-Fetch-Site`, `Sec-Fetch-Mode`, `Sec-Fetch-Dest` 헤더 세트를 세션 단위로 일관되게 유지.
+    2. **세션 쿠키 워밍업 (`warm_up_session`)**: 내부 AJAX/REST API 호출 전 각 채널의 모바일 편성표 진입 페이지(`Referer` URL)를 먼저 방문하여 정상 세션 쿠키(`JSESSIONID` 등)를 `CookieJar`에 선발급.
+    3. **인간 행동 모사 랜덤 지터 (`sleep_with_jitter`) & 분산 출발 (`MultiChannelAggregator`)**: 날짜/페이지 전환 시 `0.65~1.65초` 랜덤 지터 지연 및 채널 간 스태거링(분산 출발) 적용, `429/403/503` 응답 시 지수 백오프 + 프로필 교체 재시도.
+  - 건기식 키워드 매칭 및 화장품/이미용/의료기기 네거티브 키워드(`크림, 화장품, 에센스, 세럼, 로션, 마스크팩, 앰플, 센텔리안, 마데카, 샴푸, 치약, 기기, 혈압계, 측정기, 세라젬` 등) 사전 차단.
 
 | 채널명 | 어댑터 클래스 | 수집 구간 | 요청 메서드 / 엔드포인트 / 파라미터 규격 | 파싱 방식 |
 | :--- | :--- | :--- | :--- | :--- |
-| **GS SHOP** | `GsShopScraper` | `D+0 ~ D+6` | **POST** `https://m.gsshop.com/shop/tv/tvScheduleAjax.gs`<br>- Form Data: `selectDate=YYYYMMDD`, `ch=live`<br>- Headers: `X-Requested-With: XMLHttpRequest`, `Referer: https://m.gsshop.com/shop/tv/tvScheduleMain.gs` | JSON 객체 및 HTML 조각(BeautifulSoup) 듀얼 파싱 |
-| **CJ온스타일** | `CjOnstyleScraper` | `D+0 ~ D+6` | **GET** `https://display.cjonstyle.com/c/rest/tv/tvSchedule`<br>- Params: `bdDt=YYYYMMDD` | JSON 딕셔너리 구조 추출 |
-| **NS홈쇼핑** | `NsMallScraper` | `D+0 ~ D+3` | **GET** `https://m.nsmall.com/tv/schedule/getTvScheduleList`<br>- Params: `selectDay=YYYYMMDD&cnnlCd=TV`<br>- Headers: `Accept: application/json, text/plain, */*`, `Referer: https://m.nsmall.com/tv/schedule` | REST JSON 우선 파싱 및 HTML DOM(`.product-item` 등) 폴백 파싱 |
-| **롯데홈쇼핑** | `LotteImallScraper` | `D+0 ~ D+3` | **POST** `https://m.lotteimall.com/display/selectTvScheduleListAjax.lotte`<br>- Form Data: `bd_date=YYYYMMDD&chnl_gb=01`<br>- Headers: `X-Requested-With: XMLHttpRequest`, `Referer: https://m.lotteimall.com/display/viewTvSchedule.lotte` | JSON 응답 및 HTML 마크업(BeautifulSoup) 듀얼 파싱 |
-| **현대홈쇼핑** | `HmallScraper` | `D+0 ~ D+3` | **GET/POST** `https://www.hmall.com/p/bmc/selectTvSchedule.do`<br>- Params: `brodDt=YYYYMMDD&broadDt=YYYYMMDD&brodGb=01` | JSON 키(`slitmNm`, `brodTitl`, `brodStrtDtm`) 및 HTML DOM 듀얼 파싱 |
+| **GS SHOP** | `GsShopScraper` | `D+0 ~ D+6` | **GET** `https://m.gsshop.com/main/broadSchedule/{YYYYMMDD}`<br>- Params: `broadType=ALL&startDate=YYYYMMDD`<br>- Headers: `X-Requested-With: XMLHttpRequest`, `Referer: https://m.gsshop.com/main/broadSchedule` | `<article class="prd-item">` DOM 및 상위 `data-broadStartDate` / `data-pgminfo` 파싱 |
+| **CJ온스타일** | `CjOnstyleScraper` | `D+0 ~ D+6` | **GET** `https://display.cjonstyle.com/c/rest/tv/tvSchedule`<br>- Params: `bdDt=YYYYMMDD` | `result.programList`의 `bdStrDtm`(Epoch ms -> KST `HH:MM`) 및 하위 `itemList` 추출 |
+| **NS홈쇼핑** | `NsMallScraper` | `D+0 ~ D+3` | **GET** `https://mapi.nsmall.com/md/api/v1/display/media/schedule/all/{YYYYMMDD}`<br>- Params: `formDate=YYYYMMDD`<br>- Headers: `Origin: https://m.nsmall.com`, `Referer: https://m.nsmall.com/store/fixed/schedule/tv/{YYYYMMDD}` | `data.resultData.totalOrgan` 내 `startDtm`, `goods`, `relTotalOrgan` JSON 직접 파싱 |
+| **롯데홈쇼핑** | `LotteImallScraper` | `D+0 ~ D+3` | **GET** `https://m.lotteimall.com/schedule/scheduleLive.lotte` & `scheduleOne.lotte`<br>- Params: `bdDate=YYYYMMDD`<br>- Headers: `X-Requested-With: XMLHttpRequest`, `Referer: https://m.lotteimall.com/main/tvschedule.lotte?direct=L&isAlone=T` | `body.prod` 배열(`stime`, `name`, `brand`, `price_disc`, `related`, `relatedAdd`) JSON 파싱 |
+| **현대홈쇼핑** | `HmallScraper` | `D+0 ~ D+3` | **GET** `https://www.hmall.com/api/hf/dp/v1/main-tv-new/tv-list`<br>- Params: `brodDt=YYYYMMDD&brodPrrgPage=1..6&categoryList=001,002`<br>- Headers: `Referer: https://www.hmall.com/md/dpl/index?mainDispSeq=2&brodType=all` | `respData.broadItemList` 및 `withItemList` 내 `slitmNm`, `brodStrtDtm`, `bbprc`/`sellPrc` JSON 직접 파싱 |
 
 ### 3.2 Google Gemini API 리포트 포맷 (`Infrastructure/AI/GeminiClient.py`)
-- **SDK 및 모델**: `google-genai` 패키지 / 기본 `gemini-flash-latest` (폴백: `gemini-2.0-flash`, `gemini-1.5-flash`)
+- **SDK 및 모델**: `google-genai` 패키지 / 기본 `gemini-2.5-flash` (폴백: `gemini-flash-latest`, `gemini-2.0-flash`)
 - **전략 리포트 출력 규격**:
   ```markdown
   # 건강기능식품 시장 데이터 분석 리포트
@@ -140,7 +144,7 @@ HsMoaTrendAnalyzer/
 
 ### 4.2 도메인 모델 및 4대 저장소 (`outputs/`)
 1. `outputs/crawling_history.db`: 일별 수집 상태 및 채널별 헬스체크 히스토리
-2. `outputs/7day_forecast_sync.xlsx`: D+0 ~ D+6 기간 슬라이딩 윈도우 동기화 엑셀 (`sync_key`: `{date}_{time}_{channel}`)
+2. `outputs/7day_forecast_sync.xlsx`: D+0 ~ D+6 기간 슬라이딩 윈도우 동기화 엑셀 (`sync_key`: `{date}_{time}_{channel}_{product_name}`)
 3. `outputs/건기식 - statistics.xlsx`: 원료별 일일 누적 통계 엑셀 (`날짜`, `원료명`, `방송 횟수`, `Power Score`, `Weighted Count`, `참여 브랜드 리스트`)
 4. `outputs/last_ai_report.txt` & `outputs/ai_reports/report_YYYYMMDD.txt`: 전략 리포트 텍스트 백업
 
@@ -153,6 +157,8 @@ HsMoaTrendAnalyzer/
 ---
 
 ## 5. 최근 변경 이력
+- `[2026-11-09] 안티봇 스텔스(Stealth) 수집 프로토콜 도입(모바일 브라우저 핑거프린트 프로필 헤더 동기화, 편성표 진입 페이지 세션 쿠키 워밍업, 랜덤 지터 지연 및 채널 간 스태거링 분산 출발, 429/403 지수 백오프 재시도)`
+- `[2026-11-09] 5대 홈쇼핑 실제 패킷 검증 기반 엔드포인트 전면 교체(GS SHOP /main/broadSchedule/{YYYYMMDD}, NS홈쇼핑 mapi.nsmall.com REST API, 롯데홈쇼핑 scheduleLive.lotte/scheduleOne.lotte JSON API, 현대홈쇼핑 /api/hf/dp/v1/main-tv-new/tv-list REST API, CJ온스타일 bdStrDtm Epoch 변환), 화장품/의료기기 오탐 제거 필터링, SyncManager sync_key 중복 누락 버그 수정, Gemini API 크레딧 소진 시 룰 기반 원료 분석/심층 전략 리포트 폴백 및 텔레그램 장문 분할 발송 적용`
 - `[2026-11-06] GS SHOP(POST AJAX), NS홈쇼핑(REST API+HTML폴백), 롯데홈쇼핑(POST AJAX) 스크래퍼 정밀 정상화, 4대 저장소 무결 영속화(건기식 통계 엑셀 연동), Gemini AI 전략 리포트 심층 포맷 복원`
 - `[2026-11-03] 4개 홈쇼핑 스크래퍼(롯데, GS, NS, 현대) 모바일 JSON/AJAX 엔드포인트 교체 및 부분 수집 시 Gemini 리포트 생성 방어/폴백 로직 강화`
 - `[2026-11-01] DataHub 크롤러 제거 및 5대 홈쇼핑 비로그인 병렬 어댑터(Infrastructure/Scrapers) 구축, 채널별 헬스체크 DB(channel_health_history) 및 텔레그램 상태 리포트 연동, D+7 슬라이딩 윈도우 전환`

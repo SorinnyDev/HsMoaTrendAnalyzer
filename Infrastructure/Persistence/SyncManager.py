@@ -55,7 +55,7 @@ class SyncManager:
                 row["category"] = item.category
                 row["price"] = item.price
                 row["power_score"] = current_weight
-                row["sync_key"] = f"{item.broadcast_date}_{item.broadcast_time}_{item.channel}"
+                row["sync_key"] = f"{item.broadcast_date}_{item.broadcast_time}_{item.channel}_{item.product_name}"
                 
                 new_records.append(row)
             except Exception as e:
@@ -69,10 +69,18 @@ class SyncManager:
         elif (df_new.empty):
             df_final = df_old
         else:
-            if ("sync_key" not in df_old.columns):
-                df_old["sync_key"] = df_old["broadcast_date"].astype(str) + "_" + df_old["broadcast_time"].astype(str) + "_" + df_old["channel"].astype(str)
-            
-            df_combined = pd.concat([df_new, df_old], ignore_index=True)
+            df_old["sync_key"] = (
+                df_old["broadcast_date"].astype(str)
+                + "_"
+                + df_old["broadcast_time"].astype(str)
+                + "_"
+                + df_old["channel"].astype(str)
+                + "_"
+                + df_old["product_name"].astype(str)
+            )
+            fresh_channels = set(df_new["channel"].unique())
+            df_old_retained = df_old[~df_old["channel"].isin(fresh_channels)]
+            df_combined = pd.concat([df_new, df_old_retained], ignore_index=True)
             df_final = df_combined.drop_duplicates(subset=["sync_key"], keep="first")
 
         # 4. Final Save

@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Dict, Any
 import asyncio
 import json
@@ -33,7 +33,8 @@ class CjOnstyleScraper(BaseChannelScraper):
         if (target_end_date > max_allowed_date):
             target_end_date = max_allowed_date
 
-        async with aiohttp.ClientSession() as session:
+        async with self.create_stealth_session() as session:
+            await self.warm_up_session(session, self.fallback_url)
             current_date = start_date
             while (current_date <= target_end_date):
                 date_str_compact = current_date.strftime("%Y%m%d")
@@ -44,7 +45,7 @@ class CjOnstyleScraper(BaseChannelScraper):
                 params["searchDate"] = date_str_compact
 
                 extra_headers = {}
-                extra_headers["Referer"] = "https://display.cjonstyle.com/"
+                extra_headers["Referer"] = "https://display.cjonstyle.com/p/tv/tvSchedule"
 
                 try:
                     raw_text = await self.fetch_text(session, self.base_url, params=params, extra_headers=extra_headers)
@@ -52,11 +53,11 @@ class CjOnstyleScraper(BaseChannelScraper):
                     raw_text = await self.fetch_text(session, self.fallback_url, params=params, extra_headers=extra_headers)
 
                 daily_items = self._parse_response(raw_text, date_str_iso)
-                for item in daily_items:
+                for (item) in daily_items:
                     collected_items.append(item)
 
                 current_date = current_date + timedelta(days=1)
-                await asyncio.sleep(0.3)
+                await self.sleep_with_jitter(0.65, 1.55)
 
         return collected_items
 
@@ -147,28 +148,74 @@ class CjOnstyleScraper(BaseChannelScraper):
 
         return items
 
+    def _format_cj_time(self, raw_val: Any, fallback_time: str = "00:00") -> str:
+        """
+        Formats CJ온스타일 timestamp (epoch ms int/str or HH:MM / YYYYMMDDHHMMSS) into HH:MM (KST).
+        """
+        if (raw_val is None):
+            return fallback_time
+
+        raw_str = str(raw_val).strip()
+        if (not raw_str):
+            return fallback_time
+
+        time_match = re.search(r"(\d{1,2}:\d{2})", raw_str)
+        if (time_match is not None):
+            parts = time_match.group(1).split(":")
+            return f"{int(parts[0]):02d}:{parts[1]}"
+
+        if (raw_str.isdigit()):
+            if (len(raw_str) == 13):
+                try:
+                    kst_tz = timezone(timedelta(hours=9))
+                    dt_obj = datetime.fromtimestamp(int(raw_str) / 1000.0, tz=kst_tz)
+                    return dt_obj.strftime("%H:%M")
+                except Exception:
+                    return fallback_time
+            if (len(raw_str) == 14 and raw_str.startswith("20")):
+                return f"{raw_str[8:10]}:{raw_str[10:12]}"
+
+        return fallback_time
+
     def _extract_from_json(self, data: Any, date_str_iso: str) -> List[ScheduleItem]:
         """
         Extracts ScheduleItem objects from CJ온스타일 JSON structure.
+        Propagates parent program broadcast time (bdStrDtm) down to child itemList entries.
         """
         results: List[ScheduleItem] = []
         candidates: List[Dict[str, Any]] = []
 
-        def _walk(node: Any) -> None:
+        def _walk(node: Any, inherited_time: str = "00:00") -> None:
             if (isinstance(node, dict)):
-                if ("itemNm" in node or "prdNm" in node or "goodsNm" in node or "pgmNm" in node):
-                    candidates.append(node)
-                for val in node.values():
-                    _walk(val)
-            elif (isinstance(node, list)):
-                for sub in node:
-                    _walk(sub)
+                current_time = inherited_time
+                for (t_key) in ["bdStrDtm", "bdStrtDtm", "startTime", "broadTime"]:
+                    if (t_key in node and node[t_key] is not None):
+                        current_time = self._format_cj_time(node[t_key], current_time)
+                        break
 
-        _walk(data)
+                has_child_items = False
+                if ("itemList" in node and isinstance(node["itemList"], list) and len(node["itemList"]) > 0):
+                    has_child_items = True
+
+                if (not has_child_items):
+                    if ("itemNm" in node or "prdNm" in node or "goodsNm" in node or "pgmNm" in node):
+                        enriched = {}
+                        for (k, v) in node.items():
+                            enriched[k] = v
+                        enriched["_resolved_time"] = current_time
+                        candidates.append(enriched)
+
+                for (val) in node.values():
+                    _walk(val, current_time)
+            elif (isinstance(node, list)):
+                for (sub) in node:
+                    _walk(sub, inherited_time)
+
+        _walk(data, "00:00")
         if (len(candidates) == 0):
             raise ScraperParseException("SelectorNotFound")
 
-        for item_dict in candidates:
+        for (item_dict) in candidates:
             product_name = str(
                 item_dict.get("itemNm")
                 or item_dict.get("prdNm")
@@ -184,14 +231,7 @@ class CjOnstyleScraper(BaseChannelScraper):
             if (not self.is_health_food_item(product_name, category_text)):
                 continue
 
-            raw_time = str(item_dict.get("bdStrtDtm") or item_dict.get("startTime") or item_dict.get("broadTime") or "00:00")
-            time_match = re.search(r"(\d{1,2}:\d{2})", raw_time)
-            if (time_match is not None):
-                time_str = time_match.group(1)
-            elif (len(raw_time) >= 12 and raw_time.isdigit()):
-                time_str = f"{raw_time[8:10]}:{raw_time[10:12]}"
-            else:
-                time_str = "00:00"
+            time_str = str(item_dict.get("_resolved_time") or "00:00")
 
             raw_price = str(item_dict.get("slPrc") or item_dict.get("salePrice") or item_dict.get("price") or "")
             price_str = re.sub(r"[^\d]", "", raw_price)
